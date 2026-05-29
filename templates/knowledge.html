@@ -1,0 +1,55 @@
+{% extends "layout.html" %}
+{% block title %}知识库 - 辩论队{% endblock %}
+{% block content %}
+<div class="knowledge-page">
+    <div class="section-header">
+        <h2>&#x1f4da; 辩论知识库</h2>
+        {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('admin_create_knowledge') }}" class="btn btn-sm">&#x2795; 新建</a>
+        {% endif %}
+    </div>
+
+    <!-- 分类导航 -->
+    <div class="category-nav">
+        <a href="{{ url_for('knowledge') }}" class="cat-tag {% if not current_category %}active{% endif %}">全部</a>
+        {% for cat in categories %}
+        <a href="{{ url_for('knowledge', category=cat) }}"
+           class="cat-tag {% if current_category == cat %}active{% endif %}">{{ cat }}</a>
+        {% endfor %}
+    </div>
+
+    <!-- 文章列表 -->
+    <div class="article-list">
+        {% if articles %}
+        {% for article in articles %}
+        <div class="article-card">
+            <a href="{{ url_for('knowledge_detail', article_id=article.id) }}" class="article-link">
+                <div class="article-meta">
+                    <span class="article-category">{{ article.category }}</span>
+                    <span class="article-reads">&#x1f4cb; {{ article.read_count }}</span>
+                </div>
+                <h3 class="article-title">{{ article.title }}</h3>
+                <p class="article-summary">{{ article.summary }}</p>
+                <div class="article-footer">
+                    <span class="article-points">
+                        {% if article.id in learned_ids %}
+                        &#x2705; 已学习
+                        {% else %}
+                        &#x2b50; 学习得 {{ article.points }} 分
+                        {% endif %}
+                    </span>
+                    <span class="article-date">{{ article.created_at.strftime('%Y-%m-%d') }}</span>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">&#x1f4da;</div>
+            <h3>还没有知识内容</h3>
+            <p>管理员快来添加辩论知识吧！</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

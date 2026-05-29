@@ -1,0 +1,108 @@
+{% extends "layout.html" %}
+{% block title %}动态 - 辩论队{% endblock %}
+{% block content %}
+<div class="feed-page">
+    <!-- 发帖框 -->
+    <div class="post-box" id="new-post">
+        <div class="post-box-header">
+            <div class="post-avatar">{{ current_user.display_name[0] }}</div>
+            <span class="post-user-name">{{ current_user.display_name }}</span>
+        </div>
+        <form method="post" action="{{ url_for('create_post') }}" enctype="multipart/form-data">
+            <textarea name="content" class="post-input" placeholder="分享你的辩论心得、赛后感言..." required rows="3"></textarea>
+            <div class="post-actions">
+                <label class="photo-btn">
+                    &#x1f4f7; 配图
+                    <input type="file" name="image" accept="image/*" style="display:none"
+                           onchange="previewPostImage(this)">
+                </label>
+                <span class="photo-preview" id="post-photo-preview"></span>
+                <button type="submit" class="btn btn-primary">&#x1f680; 发布</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 动态列表 -->
+    <div class="feed-list">
+        {% if posts.items %}
+        {% for post in posts.items %}
+        <div class="feed-card">
+            <div class="feed-card-header">
+                <a href="{{ url_for('profile', username=post.author.username) }}" class="feed-author">
+                    <span class="feed-avatar">{{ post.author.display_name[0] }}</span>
+                    <div>
+                        <div class="feed-name">{{ post.author.display_name }}</div>
+                        <div class="feed-time">{{ post.time_ago() }}</div>
+                    </div>
+                </a>
+            </div>
+            <div class="feed-content">{{ post.content | nl2br }}</div>
+            {% if post.image_path %}
+            <div class="feed-image">
+                <img src="{{ url_for('uploaded_file', filename=post.image_path) }}"
+                     alt="配图" onclick="zoomImg(this)" loading="lazy">
+            </div>
+            {% endif %}
+            <div class="feed-card-footer">
+                <button class="like-btn" onclick="likePost({{ post.id }}, this)">
+                    &#x2764; <span class="like-count">{{ post.likes }}</span>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- 分页 -->
+        {% if posts.pages > 1 %}
+        <div class="pagination">
+            {% if posts.has_prev %}
+            <a href="{{ url_for('feed', page=posts.prev_num) }}" class="page-btn">上一页</a>
+            {% endif %}
+            <span class="page-info">{{ posts.page }} / {{ posts.pages }}</span>
+            {% if posts.has_next %}
+            <a href="{{ url_for('feed', page=posts.next_num) }}" class="page-btn">下一页</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">&#x1f4ac;</div>
+            <h3>还没有动态</h3>
+            <p>成为第一个发言的人吧！</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function previewPostImage(input) {
+    const preview = document.getElementById('post-photo-preview');
+    preview.innerHTML = '';
+    if (input.files && input.files[0]) {
+        const span = document.createElement('span');
+        span.textContent = '\u{1f4f7} ' + input.files[0].name;
+        preview.appendChild(span);
+    }
+}
+
+function likePost(postId, btn) {
+    fetch('/post/' + postId + '/like', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            btn.querySelector('.like-count').textContent = data.likes;
+            btn.classList.add('liked');
+        });
+}
+
+function zoomImg(img) {
+    const div = document.createElement('div');
+    div.className = 'img-zoom-overlay';
+    div.innerHTML = '<span class="zoom-close">&times;</span><img src="' + img.src + '" class="zoom-img">';
+    div.onclick = function(e) { if (e.target === div) div.remove(); };
+    div.querySelector('.zoom-close').onclick = function() { div.remove(); };
+    document.body.appendChild(div);
+}
+</script>
+{% endblock %}

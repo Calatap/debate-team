@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+{% block title %}新建知识 - 辩论队{% endblock %}
+{% block content %}
+<div class="admin-page">
+    <a href="{{ url_for('knowledge') }}" class="back-link">&larr; 返回知识库</a>
+
+    <div class="admin-card">
+        <h2>&#x270d; 新建辩论知识</h2>
+        <form method="post" class="auth-form">
+            <div class="form-group">
+                <label for="title">标题</label>
+                <input type="text" id="title" name="title" class="form-input"
+                       placeholder="如：辩论中的逻辑谬误" required>
+            </div>
+            <div class="form-group">
+                <label for="category">分类</label>
+                <select id="category" name="category" class="form-input" required>
+                    <option value="">选择分类</option>
+                    <option value="入门">入门</option>
+                    <option value="进阶">进阶</option>
+                    <option value="实战">实战</option>
+                    <option value="技巧">技巧</option>
+                    <option value="理论">理论</option>
+                    <option value="其他">其他</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="summary">简介</label>
+                <input type="text" id="summary" name="summary" class="form-input"
+                       placeholder="一句话概括这篇文章">
+            </div>
+            <div class="form-group">
+                <label for="points">学习积分</label>
+                <input type="number" id="points" name="points" class="form-input"
+                       value="5" min="1" max="100">
+            </div>
+            <div class="form-group">
+                <label for="content">内容（支持 Markdown 格式）</label>
+                <textarea id="content" name="content" class="form-input" rows="16"
+                          placeholder="在这里写文章内容，可以用Markdown格式&#10;&#10;## 标题&#10;正文内容..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">&#x1f4e6; 发布文章</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "layout.html" %}
+{% block title %}排行榜 - 辩论队{% endblock %}
+{% block content %}
+<div class="leaderboard-page">
+    <div class="section-header">
+        <h2>&#x1f3c6; 积分排行榜</h2>
+    </div>
+
+    <!-- 前三名领奖台 -->
+    {% if users %}
+    <div class="podium">
+        {% set top3 = users[:3] %}
+        {% if top3|length >= 2 %}
+        <div class="podium-item second">
+            <div class="podium-avatar">{{ top3[1].display_name[0] }}</div>
+            <div class="podium-name">{{ top3[1].display_name }}</div>
+            <div class="podium-points">{{ top3[1].total_points }}</div>
+            <div class="podium-bar" style="height:80px;">2</div>
+        </div>
+        {% endif %}
+        {% if top3|length >= 1 %}
+        <div class="podium-item first">
+            <div class="podium-crown">&#x1f451;</div>
+            <div class="podium-avatar">{{ top3[0].display_name[0] }}</div>
+            <div class="podium-name">{{ top3[0].display_name }}</div>
+            <div class="podium-points">{{ top3[0].total_points }}</div>
+            <div class="podium-bar" style="height:110px;">1</div>
+        </div>
+        {% endif %}
+        {% if top3|length >= 3 %}
+        <div class="podium-item third">
+            <div class="podium-avatar">{{ top3[2].display_name[0] }}</div>
+            <div class="podium-name">{{ top3[2].display_name }}</div>
+            <div class="podium-points">{{ top3[2].total_points }}</div>
+            <div class="podium-bar" style="height:60px;">3</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 排行榜列表 -->
+    <div class="rank-list">
+        {% for u in users %}
+        <a href="{{ url_for('profile', username=u.username) }}" class="rank-item {% if u.id == current_user.id %}rank-me{% endif %}">
+            <div class="rank-number">
+                {% if u.rank == 1 %}
+                <span class="rank-medal gold">&#x1f947;</span>
+                {% elif u.rank == 2 %}
+                <span class="rank-medal silver">&#x1f948;</span>
+                {% elif u.rank == 3 %}
+                <span class="rank-medal bronze">&#x1f949;</span>
+                {% else %}
+                <span class="rank-num">{{ u.rank }}</span>
+                {% endif %}
+            </div>
+            <div class="rank-avatar">{{ u.display_name[0] }}</div>
+            <div class="rank-info">
+                <div class="rank-name">{{ u.display_name }}</div>
+                <div class="rank-role">{{ u.role == 'admin' and '管理员' or '队员' }}</div>
+            </div>
+            <div class="rank-points">
+                <span class="rank-points-num">{{ u.total_points }}</span>
+                <span class="rank-points-label">分</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">&#x1f3c6;</div>
+        <h3>还没有队员</h3>
+        <p>邀请更多小伙伴加入吧！</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

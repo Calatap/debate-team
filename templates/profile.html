@@ -1,0 +1,79 @@
+{% extends "layout.html" %}
+{% block title %}{{ user.display_name }} - 辩论队{% endblock %}
+{% block content %}
+<div class="profile-page">
+    <!-- 用户信息卡片 -->
+    <div class="profile-card">
+        <div class="profile-avatar-lg">{{ user.display_name[0] }}</div>
+        <h2 class="profile-name">{{ user.display_name }}</h2>
+        <div class="profile-username">@{{ user.username }}</div>
+        <div class="profile-role-badge">
+            {{ user.role == 'admin' and '&#x1f451; 管理员' or '&#x1f465; 队员' }}
+        </div>
+
+        <div class="profile-stats">
+            <div class="stat-item">
+                <span class="stat-num">{{ user.total_points }}</span>
+                <span class="stat-label">总积分</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-num">{{ checkin_count }}</span>
+                <span class="stat-label">打卡次数</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-num">{{ learn_count }}</span>
+                <span class="stat-label">学习篇数</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-num">{{ user.streak_days }}</span>
+                <span class="stat-label">连续打卡</span>
+            </div>
+        </div>
+
+        <div class="profile-join">
+            &#x1f4c5; 加入于 {{ user.joined_at.strftime('%Y年%m月%d日') }}
+        </div>
+    </div>
+
+    <!-- 个人动态 -->
+    <div class="profile-posts">
+        <div class="section-header">
+            <h3>&#x1f4dd; {{ user.display_name }} 的动态</h3>
+        </div>
+        {% if posts %}
+        {% for post in posts %}
+        <div class="feed-card">
+            <div class="feed-content">{{ post.content | nl2br }}</div>
+            {% if post.image_path %}
+            <div class="feed-image">
+                <img src="{{ url_for('uploaded_file', filename=post.image_path) }}"
+                     alt="配图" onclick="zoomImg(this)" loading="lazy">
+            </div>
+            {% endif %}
+            <div class="feed-card-footer">
+                <span class="feed-time">{{ post.time_ago() }}</span>
+                <span>&#x2764; {{ post.likes }}</span>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state" style="padding:20px;">
+            <p>还没有发布过动态</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function zoomImg(img) {
+    const div = document.createElement('div');
+    div.className = 'img-zoom-overlay';
+    div.innerHTML = '<span class="zoom-close">&times;</span><img src="' + img.src + '" class="zoom-img">';
+    div.onclick = function(e) { if (e.target === div) div.remove(); };
+    div.querySelector('.zoom-close').onclick = function() { div.remove(); };
+    document.body.appendChild(div);
+}
+</script>
+{% endblock %}

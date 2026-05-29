@@ -1,0 +1,119 @@
+{% extends "layout.html" %}
+{% block title %}打卡 - 辩论队{% endblock %}
+{% block content %}
+<div class="checkin-page">
+    <!-- 今日打卡 -->
+    <div class="checkin-today">
+        <div class="section-header">
+            <h2>&#x1f31e; 今日打卡</h2>
+            <span class="streak-badge">&#x1f525; 连续 {{ current_user.streak_days }} 天</span>
+        </div>
+
+        {% if today_checkin %}
+        <div class="checkin-done-card">
+            <div class="checkin-done-icon">&#x2705;</div>
+            <div class="checkin-done-text">
+                <h3>今日已打卡</h3>
+                <p>+{{ today_checkin.points }} 分</p>
+                {% if today_checkin.description %}
+                <p class="checkin-desc">"{{ today_checkin.description }}"</p>
+                {% endif %}
+            </div>
+            {% if today_checkin.photo_path %}
+            <div class="checkin-done-photo">
+                <img src="{{ url_for('uploaded_file', filename=today_checkin.photo_path) }}"
+                     alt="打卡照片" onclick="zoomImg(this)">
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="checkin-form-card">
+            <p class="checkin-tip">每天打卡记录你的进步，连续打卡有额外奖励！</p>
+            <form method="post" enctype="multipart/form-data" class="checkin-form">
+                <div class="form-group">
+                    <label>&#x1f4f7; 拍照上传（选填）</label>
+                    <div class="photo-upload-area" onclick="document.getElementById('photo-input').click()">
+                        <span class="upload-icon">&#x1f4f7;</span>
+                        <span class="upload-text" id="upload-text">点击拍照或选择照片</span>
+                        <input type="file" id="photo-input" name="photo" accept="image/*" capture="environment"
+                               onchange="previewCheckinPhoto(this)" style="display:none">
+                    </div>
+                    <div id="checkin-photo-preview"></div>
+                </div>
+                <div class="form-group">
+                    <label for="description">今日感想（选填）</label>
+                    <textarea id="description" name="description" class="form-input"
+                              placeholder="今天做了什么？有什么收获？" rows="2"></textarea>
+                </div>
+                <div class="checkin-points-info">
+                    <span>&#x2b50; 基础打卡: 10分</span>
+                    {% if current_user.streak_days >= 3 %}
+                    <span class="bonus">&#x1f525; 连续打卡奖励: +2分</span>
+                    {% endif %}
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">&#x2705; 打卡签到</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 最近打卡记录 -->
+    <div class="recent-checkins">
+        <div class="section-header">
+            <h2>&#x1f4c5; 最近打卡</h2>
+        </div>
+        {% if recent_checkins %}
+        <div class="checkin-list">
+            {% for c in recent_checkins %}
+            <div class="checkin-item">
+                <div class="checkin-item-date">{{ c.date.strftime('%m/%d') }}</div>
+                <div class="checkin-item-info">
+                    <span class="checkin-item-points">+{{ c.points }}</span>
+                    {% if c.description %}
+                    <span class="checkin-item-desc">{{ c.description[:30] }}{{ c.description|length > 30 and '...' or '' }}</span>
+                    {% endif %}
+                </div>
+                {% if c.photo_path %}
+                <span class="checkin-item-photo-icon">&#x1f4f7;</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:20px;">
+            <p>还没有打卡记录，今天就开始吧！</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function previewCheckinPhoto(input) {
+    const preview = document.getElementById('checkin-photo-preview');
+    const text = document.getElementById('upload-text');
+    preview.innerHTML = '';
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.className = 'preview-img';
+            preview.appendChild(img);
+        };
+        reader.readAsDataURL(input.files[0]);
+        text.textContent = input.files[0].name;
+    }
+}
+
+function zoomImg(img) {
+    const div = document.createElement('div');
+    div.className = 'img-zoom-overlay';
+    div.innerHTML = '<span class="zoom-close">&times;</span><img src="' + img.src + '" class="zoom-img">';
+    div.onclick = function(e) { if (e.target === div) div.remove(); };
+    div.querySelector('.zoom-close').onclick = function() { div.remove(); };
+    document.body.appendChild(div);
+}
+</script>
+{% endblock %}

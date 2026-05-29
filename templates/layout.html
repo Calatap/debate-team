@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}辩论队{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <header class="top-bar">
+        <div class="top-inner">
+            <a href="{{ url_for('feed') }}" class="logo">&#x1f3db; 辩论队</a>
+            {% if current_user.is_authenticated %}
+            <div class="top-right">
+                <span class="points-badge">&#x2b50; {{ current_user.total_points }}</span>
+                <a href="{{ url_for('profile', username=current_user.username) }}" class="user-link">
+                    {{ current_user.display_name }}
+                </a>
+                <a href="{{ url_for('logout') }}" class="logout-link">退出</a>
+            </div>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- Flash 消息 -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container">
+        {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}">
+            {{ message }}
+            <span class="flash-close" onclick="this.parentElement.remove()">&times;</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- 主内容 -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- 底部导航（手机端） -->
+    {% if current_user.is_authenticated %}
+    <nav class="bottom-nav">
+        <a href="{{ url_for('feed') }}" class="nav-item {% if request.endpoint == 'feed' %}active{% endif %}">
+            <span class="nav-icon">&#x1f4f0;</span>
+            <span class="nav-label">动态</span>
+        </a>
+        <a href="{{ url_for('checkin') }}" class="nav-item {% if request.endpoint == 'checkin' %}active{% endif %}">
+            <span class="nav-icon">&#x2705;</span>
+            <span class="nav-label">打卡</span>
+        </a>
+        <a href="{{ url_for('leaderboard') }}" class="nav-item {% if request.endpoint == 'leaderboard' %}active{% endif %}">
+            <span class="nav-icon">&#x1f3c6;</span>
+            <span class="nav-label">排行</span>
+        </a>
+        <a href="{{ url_for('knowledge') }}" class="nav-item {% if request.endpoint == 'knowledge' %}active{% endif %}">
+            <span class="nav-icon">&#x1f4da;</span>
+            <span class="nav-label">学习</span>
+        </a>
+        <a href="{{ url_for('profile', username=current_user.username) }}" class="nav-item {% if request.endpoint == 'profile' %}active{% endif %}">
+            <span class="nav-icon">&#x1f464;</span>
+            <span class="nav-label">我的</span>
+        </a>
+    </nav>
+    {% endif %}
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

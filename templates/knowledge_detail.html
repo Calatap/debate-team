@@ -1,0 +1,65 @@
+{% extends "layout.html" %}
+{% block title %}{{ article.title }} - 辩论队{% endblock %}
+{% block content %}
+<div class="article-detail-page">
+    <a href="{{ url_for('knowledge') }}" class="back-link">&larr; 返回知识库</a>
+
+    <div class="article-detail-card">
+        <div class="article-detail-header">
+            <span class="article-category">{{ article.category }}</span>
+            <h1>{{ article.title }}</h1>
+            <div class="article-detail-meta">
+                <span>&#x1f4cb; {{ article.read_count }} 次阅读</span>
+                <span>&#x2b50; {{ article.points }} 积分</span>
+            </div>
+        </div>
+
+        <div class="article-detail-body markdown-body">
+            {{ article.content | replace('\n', '<br>') | safe }}
+        </div>
+
+        <div class="article-detail-footer">
+            {% if learned %}
+            <div class="learned-badge">&#x2705; 已学习 &#x2b50;+{{ article.points }}</div>
+            {% else %}
+            <button class="btn btn-primary btn-full" onclick="learnArticle({{ article.id }})">
+                &#x1f4d6; 学完得 {{ article.points }} 分
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function learnArticle(articleId) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '提交中...';
+
+    fetch('/knowledge/' + articleId + '/learn', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                btn.className = 'btn btn-success btn-full';
+                btn.textContent = '\u2705 学习完成 +' + data.points + '分';
+                // 更新顶部积分显示
+                const badge = document.querySelector('.points-badge');
+                if (badge) {
+                    const current = parseInt(badge.textContent.match(/\d+/)[0]);
+                    badge.innerHTML = '\u2b50 ' + (current + data.points);
+                }
+            } else if (data.status === 'already') {
+                btn.className = 'btn btn-success btn-full';
+                btn.textContent = '\u2705 已学习';
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.textContent = '\u{1f4d6} 学完得 ' + btn.dataset.points + ' 分';
+            alert('操作失败，请重试');
+        });
+}
+</script>
+{% endblock %}
