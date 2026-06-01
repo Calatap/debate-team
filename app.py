@@ -65,6 +65,19 @@ def nl2br_filter(text):
 # ===== 初始化数据库并填充知识库 =====
 def init_db():
     db.create_all()
+    # 数据库迁移：给已有表加新增字段（不影响现有数据）
+    from sqlalchemy import text
+    migrations = [
+        "ALTER TABLE post ADD COLUMN voice_path VARCHAR(200)",
+        "ALTER TABLE comment ADD COLUMN voice_path VARCHAR(200)",
+        "ALTER TABLE message ADD COLUMN voice_path VARCHAR(200)",
+    ]
+    for stmt in migrations:
+        try:
+            db.session.execute(text(stmt))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()  # 字段已存在就跳过
     if KnowledgeArticle.query.count() == 0:
         articles = [
             {
