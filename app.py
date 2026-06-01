@@ -553,6 +553,11 @@ def my_profile():
     return redirect(url_for('profile', username=current_user.username))
 
 
+# ===== 初始化数据库（gunicorn 也会执行） =====
+with app.app_context():
+    init_db()
+
+
 # ===== 上传文件访问 =====
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -561,8 +566,6 @@ def uploaded_file(filename):
 
 # ===== 启动 =====
 if __name__ == '__main__':
-    with app.app_context():
-        init_db()
     port = int(os.environ.get('PORT', 5000))
     print('=' * 50)
     print('辩论队管理系统已启动！')
