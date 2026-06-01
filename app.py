@@ -1,6 +1,6 @@
 import os
 import uuid
-import subprocess
+import json
 from datetime import date, datetime, timedelta
 
 from flask import (Flask, render_template, redirect, url_for, request,
@@ -10,6 +10,7 @@ from flask_login import (LoginManager, login_user, logout_user,
 from markupsafe import escape
 from werkzeug.utils import secure_filename
 from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy import text
 
 from models import db, User, Post, CheckIn, KnowledgeArticle, KnowledgeAttachment, LearningRecord, PointsLog, Comment, Message, AIChat, BackupLog
 
@@ -40,34 +41,114 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 BACKUP_FOLDER = os.path.join(BASE_DIR, 'backups')
 os.makedirs(BACKUP_FOLDER, exist_ok=True)
 
-# ===== 自动备份调度器 =====
+# ===== 数据库备份调度器 =====
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=lambda: auto_backup(), trigger='interval', hours=24, id='daily_backup', replace_existing=True)
 scheduler.start()
 
+# 备份时的表顺序（依赖顺序：先导父表）
+BACKUP_TABLE_ORDER = ['user', 'post', 'checkin', 'comment', 'message',
+                      'knowledge_article', 'learning_record', 'points_log',
+                      'knowledge_attachment', 'backup_log', 'ai_chat']
+
+
+def _serialize_val(val):
+    if isinstance(val, (datetime, date)):
+        return val.isoformat()
+    return val
+
+
+def _deserialize_val(val, col_type):
+    """根据列类型反序列化"""
+    if val is None:
+        return None
+    col_type_str = str(col_type).lower()
+    if 'datetime' in col_type_str or 'timestamp' in col_type_str:
+        if isinstance(val, str):
+            return datetime.fromisoformat(val)
+    if 'date' in col_type_str:
+        if isinstance(val, str):
+            return date.fromisoformat(val)
+    if 'integer' in col_type_str or 'int' in col_type_str:
+        return int(val)
+    if 'float' in col_type_str or 'numeric' in col_type_str or 'double' in col_type_str:
+        return float(val)
+    if 'boolean' in col_type_str or 'bool' in col_type_str:
+        if isinstance(val, str):
+            return val.lower() in ('true', '1', 'yes')
+        return bool(val)
+    return val
+
+
+def _do_backup():
+    """执行备份，返回 (filename, filepath, size) 或抛出异常"""
+    ts = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+    filename = f'backup_{ts}.json'
+    filepath = os.path.join(BACKUP_FOLDER, filename)
+
+    data = {}
+    for tbl_name in BACKUP_TABLE_ORDER:
+        try:
+            rows = db.session.execute(text(f'SELECT * FROM {tbl_name}')).mappings().all()
+            data[tbl_name] = [
+                {col: _serialize_val(getattr(r, col)) for col in r.keys()}
+                for r in rows
+            ]
+        except Exception:
+            data[tbl_name] = []
+
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    size = os.path.getsize(filepath)
+    return filename, size
+
+
+def _do_restore(filepath):
+    """从备份文件恢复数据库"""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    # 按逆序清空表
+    for tbl_name in reversed(BACKUP_TABLE_ORDER):
+        if tbl_name in data:
+            db.session.execute(text(f'DELETE FROM {tbl_name}'))
+
+    # 按顺序恢复
+    for tbl_name in BACKUP_TABLE_ORDER:
+        rows = data.get(tbl_name, [])
+        if not rows:
+            continue
+        table = None
+        for t in db.metadata.sorted_tables:
+            if t.name == tbl_name:
+                table = t
+                break
+        if table is None:
+            continue
+
+        # 构建列类型映射
+        col_types = {c.name: c.type for c in table.columns}
+
+        for row in rows:
+            cleaned = {}
+            for col, val in row.items():
+                if col in col_types:
+                    cleaned[col] = _deserialize_val(val, col_types[col])
+            db.session.execute(table.insert().values(**cleaned))
+
+    db.session.commit()
+
 
 def auto_backup():
-    """自动备份（无痕执行，不通知管理员）"""
+    """自动备份（无痕执行）"""
     with app.app_context():
         try:
-            db_url = app.config['SQLALCHEMY_DATABASE_URI']
-            ts = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-            filename = f'backup_{ts}.sql'
-            filepath = os.path.join(BACKUP_FOLDER, filename)
-
-            if db_url.startswith('sqlite'):
-                subprocess.run(['sqlite3', db_url.replace('sqlite:///', ''), '.dump'],
-                               stdout=open(filepath, 'w', encoding='utf-8'), check=True, timeout=120)
-            else:
-                subprocess.run(['pg_dump', '--no-owner', '--no-acl', '-f', filepath, db_url],
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=120)
-
-            size = os.path.getsize(filepath)
+            filename, size = _do_backup()
             log = BackupLog(filename=filename, file_size=size, status='success', notes='自动备份')
             db.session.add(log)
             db.session.commit()
-
-            # 只保留最近 30 个备份文件
+            # 只保留最近30份
             old_logs = BackupLog.query.order_by(BackupLog.created_at.desc()).offset(30).all()
             for old in old_logs:
                 old_path = os.path.join(BACKUP_FOLDER, old.filename)
@@ -109,7 +190,6 @@ def nl2br_filter(text):
 def init_db():
     db.create_all()
     # 数据库迁移：给已有表加新增字段（不影响现有数据）
-    from sqlalchemy import text
     migrations = [
         "ALTER TABLE post ADD COLUMN voice_path VARCHAR(200)",
         "ALTER TABLE comment ADD COLUMN voice_path VARCHAR(200)",
@@ -860,28 +940,12 @@ def admin_create_backup():
     if current_user.role != 'admin':
         abort(403)
     try:
-        db_url = app.config['SQLALCHEMY_DATABASE_URI']
-        ts = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-        filename = f'backup_{current_user.username}_{ts}.sql'
-        filepath = os.path.join(BACKUP_FOLDER, filename)
-
-        if db_url.startswith('sqlite'):
-            subprocess.run(['sqlite3', db_url.replace('sqlite:///', ''), '.dump'],
-                           stdout=open(filepath, 'w', encoding='utf-8'), check=True, timeout=120)
-        else:
-            subprocess.run(['pg_dump', '--no-owner', '--no-acl', '-f', filepath, db_url],
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=120)
-
-        size = os.path.getsize(filepath)
+        filename, size = _do_backup()
         log = BackupLog(filename=filename, file_size=size, status='success',
                         notes=f'手动备份 by {current_user.username}')
         db.session.add(log)
         db.session.commit()
         flash(f'备份成功！({size / 1024:.1f} KB)', 'success')
-    except subprocess.TimeoutExpired:
-        flash('备份超时，请重试', 'danger')
-    except subprocess.CalledProcessError as e:
-        flash(f'备份失败：{e.stderr.decode() if e.stderr else str(e)}', 'danger')
     except Exception as e:
         flash(f'备份失败：{str(e)}', 'danger')
     return redirect(url_for('admin_backups'))
@@ -898,18 +962,8 @@ def admin_restore_backup(backup_id):
         flash('备份文件不存在', 'danger')
         return redirect(url_for('admin_backups'))
     try:
-        db_url = app.config['SQLALCHEMY_DATABASE_URI']
-        if db_url.startswith('sqlite'):
-            subprocess.run(['sqlite3', db_url.replace('sqlite:///', ''), '.read', filepath],
-                           check=True, timeout=300)
-        else:
-            subprocess.run(['psql', '-f', filepath, db_url],
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=300)
+        _do_restore(filepath)
         flash('恢复成功！', 'success')
-    except subprocess.TimeoutExpired:
-        flash('恢复超时', 'danger')
-    except subprocess.CalledProcessError as e:
-        flash(f'恢复失败：{e.stderr.decode() if e.stderr else str(e)}', 'danger')
     except Exception as e:
         flash(f'恢复失败：{str(e)}', 'danger')
     return redirect(url_for('admin_backups'))
