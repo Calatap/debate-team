@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import json
 from datetime import date, datetime, timedelta
@@ -906,6 +907,9 @@ def ai_ask():
         except Exception as e:
             reply = f'AI服务调用失败：{str(e)}\n\n请检查 AI_API_URL 配置是否正确。'
 
+    # 清理AI回复中的HTML标签残留
+    reply = re.sub(r'</?br\s*/?>', '\n', reply, flags=re.IGNORECASE)
+    reply = re.sub(r'</?p\s*/?>', '', reply, flags=re.IGNORECASE)
     ai_chat = AIChat(user_id=current_user.id, role='assistant', content=reply)
     db.session.add(ai_chat)
     db.session.commit()
