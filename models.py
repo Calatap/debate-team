@@ -69,6 +69,7 @@ class Post(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
     image_path = db.Column(db.String(200))
+    voice_path = db.Column(db.String(200))
     likes = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -139,6 +140,7 @@ class Comment(db.Model):
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
+    voice_path = db.Column(db.String(200))
     parent_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -167,6 +169,7 @@ class Message(db.Model):
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    voice_path = db.Column(db.String(200))
     sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages', lazy='joined')
     receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_messages', lazy='joined')
 
@@ -181,3 +184,14 @@ class KnowledgeAttachment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     article = db.relationship('KnowledgeArticle', backref='attachments', lazy='joined')
+
+
+class AIChat(db.Model):
+    __tablename__ = 'ai_chat'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    role = db.Column(db.String(20), nullable=False)  # 'user' or 'assistant'
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='ai_chats', lazy='joined')

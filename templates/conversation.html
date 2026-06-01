@@ -11,7 +11,10 @@
         {% if chat %}
         {% for msg in chat %}
         <div class="chat-msg {% if msg.sender_id == current_user.id %}sent{% else %}received{% endif %}">
-            {{ msg.content }}
+            {% if msg.voice_path %}
+            <audio controls class="voice-player" src="{{ url_for('uploaded_file', filename=msg.voice_path) }}"></audio>
+            {% endif %}
+            {% if msg.content %}{{ msg.content }}{% endif %}
             <span class="time">{{ msg.created_at.strftime('%m/%d %H:%M') }}</span>
         </div>
         {% endfor %}
@@ -21,10 +24,58 @@
         </div>
         {% endif %}
     </div>
-    <form method="post" class="chat-input-area">
-        <input type="text" name="content" placeholder="输入消息..." required autofocus>
+    <form method="post" class="chat-input-area" enctype="multipart/form-data">
+        <input type="text" name="content" placeholder="输入消息..." autofocus>
+        <label class="voice-msg-btn" onclick="event.preventDefault(); startVoiceMsg(this)">&#x1f3a4;</label>
+        <input type="hidden" name="voice" id="chat-voice-input" value="">
+        <span class="voice-status" id="chat-voice-status"></span>
         <button type="submit">&#x1f680; 发送</button>
     </form>
+    <script>
+    var mediaRecorder = null;
+    var audioChunks = [];
+    function startVoiceMsg(btn) {
+        var statusEl = document.getElementById('chat-voice-status');
+        var inputEl = document.getElementById('chat-voice-input');
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+            btn.textContent = '\u{1f3a4}';
+            btn.style.color = '';
+            return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            statusEl.textContent = '不支持录音';
+            return;
+        }
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+            audioChunks = [];
+            mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '' });
+            mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
+            mediaRecorder.onstop = function() {
+                stream.getTracks().forEach(function(t) { t.stop(); });
+                var blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+                var formData = new FormData();
+                formData.append('voice', blob, 'recording.' + (mediaRecorder.mimeType.includes('webm') ? 'webm' : 'mp3'));
+                statusEl.textContent = '上传中...';
+                fetch('/voice/upload', { method: 'POST', body: formData })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.filename) {
+                            inputEl.value = data.filename;
+                            statusEl.innerHTML = '\u{1f3b5} 已录制';
+                        } else {
+                            statusEl.textContent = '上传失败';
+                        }
+                    })
+                    .catch(function() { statusEl.textContent = '上传失败'; });
+            };
+            mediaRecorder.start();
+            btn.textContent = '\u{23f9}';
+            btn.style.color = '#f44336';
+            statusEl.textContent = '录音中...';
+        }).catch(function() { statusEl.textContent = '无法访问麦克风'; });
+    }
+    </script>
 </div>
 
 <script>

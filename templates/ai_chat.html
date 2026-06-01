@@ -1,0 +1,78 @@
+{% extends "layout.html" %}
+{% block title %}AI辩论助手 - 辩论队{% endblock %}
+{% block content %}
+<div class="ai-chat-page">
+    <div class="ai-chat-header">
+        <div class="ai-header-left">
+            <span class="ai-header-icon">&#x1f916;</span>
+            <div>
+                <h2>AI辩论助手</h2>
+                <span class="ai-subtitle">分析辩题 · 构建论点 · 模拟攻防</span>
+            </div>
+        </div>
+        <form method="post" action="{{ url_for('ai_clear') }}"
+              onsubmit="return confirm('确定清空所有对话记录？')">
+            <button class="btn btn-sm" type="submit">&#x1f5d1; 清空</button>
+        </form>
+    </div>
+
+    {% if not api_configured %}
+    <div class="ai-notice">
+        <strong>&#x26a0; 提示：</strong>AI接口尚未配置。请在环境变量中设置
+        <code>AI_API_URL</code> 和 <code>AI_API_KEY</code> 启用真AI能力。
+        当前为本地模式，可正常体验对话界面。
+    </div>
+    {% endif %}
+
+    <div class="ai-messages" id="ai-messages">
+        {% if history %}
+        {% for msg in history %}
+        <div class="ai-msg ai-msg-{{ msg.role }}">
+            <div class="ai-msg-avatar">
+                {{ msg.role == 'assistant' and '&#x1f916;' or current_user.display_name[0] }}
+            </div>
+            <div class="ai-msg-body">
+                <div class="ai-msg-name">{{ msg.role == 'assistant' and 'AI助手' or current_user.display_name }}</div>
+                <div class="ai-msg-content">{{ msg.content | nl2br }}</div>
+                <div class="ai-msg-time">{{ msg.created_at.strftime('%H:%M') }}</div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="ai-empty">
+            <div class="ai-empty-icon">&#x1f916;</div>
+            <h3>你好！我是辩论AI助手</h3>
+            <p>我可以帮你：</p>
+            <div class="ai-tips">
+                <span>分析辩题利弊</span>
+                <span>构建论证框架</span>
+                <span>模拟对手反驳</span>
+                <span>优化辩论稿</span>
+                <span>提供案例数据</span>
+            </div>
+            <p class="ai-empty-sub">试试问我关于辩论的任何问题吧！</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="ai-input-area">
+        <form method="post" action="{{ url_for('ai_ask') }}" class="ai-form">
+            <input type="text" name="message" class="ai-input"
+                   placeholder="输入你的辩论问题..." required autofocus>
+            <button type="submit" class="ai-send-btn">&#x1f680; 发送</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var container = document.getElementById('ai-messages');
+    container.scrollTop = container.scrollHeight;
+    // 定位到最新消息
+    var latest = document.getElementById('latest');
+    if (latest) latest.scrollIntoView({ behavior: 'smooth' });
+});
+</script>
+{% endblock %}

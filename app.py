@@ -9,12 +9,13 @@ from flask_login import (LoginManager, login_user, logout_user,
 from markupsafe import escape
 from werkzeug.utils import secure_filename
 
-from models import db, User, Post, CheckIn, KnowledgeArticle, KnowledgeAttachment, LearningRecord, PointsLog, Comment, Message
+from models import db, User, Post, CheckIn, KnowledgeArticle, KnowledgeAttachment, LearningRecord, PointsLog, Comment, Message, AIChat
 
 # ===== 配置 =====
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'mp4', 'doc', 'docx', 'ppt', 'pptx', 'pdf', 'mp3', 'wav', 'ogg'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'mp4', 'doc', 'docx', 'ppt', 'pptx', 'pdf', 'mp3', 'wav', 'ogg', 'webm'}
+VOICE_EXTENSIONS = {'mp3', 'wav', 'ogg', 'webm'}
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'debate-team-secret-key-2025')
@@ -362,6 +363,14 @@ def create_post():
         return redirect(url_for('feed'))
 
     image_path = None
+    voice_path = None
+    if 'voice' in request.files:
+        file = request.files['voice']
+        if file and file.filename and '.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in VOICE_EXTENSIONS:
+            ext = file.filename.rsplit('.', 1)[1].lower()
+            filename = f'voice_{uuid.uuid4().hex}.{ext}'
+            file.save(os.path.join(UPLOAD_FOLDER, filename))
+            voice_path = filename
     if 'image' in request.files:
         file = request.files['image']
         if file and file.filename and allowed_file(file.filename):
@@ -370,7 +379,7 @@ def create_post():
             file.save(os.path.join(UPLOAD_FOLDER, filename))
             image_path = filename
 
-    post = Post(user_id=current_user.id, content=content, image_path=image_path)
+    post = Post(user_id=current_user.id, content=content, image_path=image_path, voice_path=voice_path)
     db.session.add(post)
 
     points_earned = 2
@@ -576,7 +585,15 @@ def add_comment(post_id):
     if not content:
         flash('评论不能为空', 'danger')
         return redirect(url_for('feed'))
-    comment = Comment(post_id=post_id, user_id=current_user.id, content=content)
+    voice_path = None
+    if 'voice' in request.files:
+        file = request.files['voice']
+        if file and file.filename and '.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in VOICE_EXTENSIONS:
+            ext = file.filename.rsplit('.', 1)[1].lower()
+            filename = f'voice_{uuid.uuid4().hex}.{ext}'
+            file.save(os.path.join(UPLOAD_FOLDER, filename))
+            voice_path = filename
+    comment = Comment(post_id=post_id, user_id=current_user.id, content=content, voice_path=voice_path)
     db.session.add(comment)
     current_user.add_points(1, 'comment', '发表评论')
     db.session.commit()
@@ -602,7 +619,9 @@ def reply_comment(comment_id):
 @login_required
 def delete_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
-    if comment.commenter.id != current_user.id and current_user.role != 'admin':
+    post = Post.query.get(comment.post_id)
+    # 允许：评论作者本人、帖子作者、管理员删除
+    if comment.commenter.id != current_user.id and current_user.role != 'admin' and (not post or post.user_id != current_user.id):
         abort(403)
     post_id = comment.post_id
     db.session.delete(comment)
@@ -666,16 +685,126 @@ def settings():
     return render_template('settings.html')
 
 
+# ===== 语音上传（AJAX） =====
+@app.route('/voice/upload', methods=['POST'])
+@login_required
+def upload_voice():
+    if 'voice' not in request.files:
+        return jsonify({'error': '没有音频文件'}), 400
+    file = request.files['voice']
+    if not file or not file.filename:
+        return jsonify({'error': '文件为空'}), 400
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'webm'
+    if ext not in VOICE_EXTENSIONS:
+        ext = 'webm'
+    filename = f'voice_{uuid.uuid4().hex}.{ext}'
+    file.save(os.path.join(UPLOAD_FOLDER, filename))
+    return jsonify({'filename': filename, 'url': url_for('uploaded_file', filename=filename)})
+
+
+# ===== 辩论AI助手 =====
+AI_API_URL = os.environ.get('AI_API_URL', '')
+AI_API_KEY = os.environ.get('AI_API_KEY', '')
+
+@app.route('/ai')
+@login_required
+def ai_chat():
+    history = AIChat.query.filter_by(user_id=current_user.id)\
+        .order_by(AIChat.created_at.asc()).limit(100).all()
+    return render_template('ai_chat.html', history=history,
+                           api_configured=bool(AI_API_URL))
+
+
+@app.route('/ai/ask', methods=['POST'])
+@login_required
+def ai_ask():
+    message = request.form.get('message', '').strip()
+    if not message:
+        flash('请输入你的问题', 'danger')
+        return redirect(url_for('ai_chat'))
+
+    # 保存用户消息
+    user_chat = AIChat(user_id=current_user.id, role='user', content=message)
+    db.session.add(user_chat)
+    db.session.commit()
+
+    if not AI_API_URL:
+        reply = ("收到你的问题了！\n\n"
+                 f"> {message}\n\n"
+                 "---\n\n"
+                 "AI助手正在思考中… 🤔\n\n"
+                 "请管理员配置 AI_API_URL 环境变量后，"
+                 "我将能为你：\n"
+                 "1. 分析辩题利弊\n"
+                 "2. 构建论证框架\n"
+                 "3. 模拟对手反驳\n"
+                 "4. 提供数据案例\n"
+                 "5. 优化辩论稿")
+    else:
+        try:
+            import requests
+            recent = AIChat.query.filter_by(user_id=current_user.id)\
+                .order_by(AIChat.created_at.desc()).limit(30).all()
+            recent.reverse()
+            messages = [{'role': 'system',
+                         'content': '你是一个专业的华语辩论AI助手。你的职责是帮助辩论队成员：'
+                                    '分析辩题、构建论点、模拟攻防、优化辩论稿、提供案例数据。'
+                                    '回答要逻辑清晰、条理分明，使用中文。'}]
+            for c in recent:
+                role = 'user' if c.role == 'user' else 'assistant'
+                messages.append({'role': role, 'content': c.content})
+
+            resp = requests.post(
+                AI_API_URL,
+                headers={'Authorization': f'Bearer {AI_API_KEY}',
+                         'Content-Type': 'application/json'},
+                json={'messages': messages},
+                timeout=60
+            )
+            data = resp.json()
+            reply = data.get('choices', [{}])[0].get('message', {}).get('content', '')
+            if not reply:
+                reply = data.get('response', data.get('reply', 'AI返回格式异常'))
+        except Exception as e:
+            reply = f'AI服务调用失败：{str(e)}\n\n请检查 AI_API_URL 配置是否正确。'
+
+    ai_chat = AIChat(user_id=current_user.id, role='assistant', content=reply)
+    db.session.add(ai_chat)
+    db.session.commit()
+
+    return redirect(url_for('ai_chat') + '#latest')
+
+
+@app.route('/ai/clear', methods=['POST'])
+@login_required
+def ai_clear():
+    AIChat.query.filter_by(user_id=current_user.id).delete()
+    db.session.commit()
+    flash('对话记录已清空', 'success')
+    return redirect(url_for('ai_chat'))
+
+
+# ===== 管理员删除打卡 =====
+@app.route('/checkin/<int:checkin_id>/delete', methods=['POST'])
+@login_required
+def delete_checkin(checkin_id):
+    checkin = CheckIn.query.get_or_404(checkin_id)
+    if current_user.role != 'admin' and checkin.user_id != current_user.id:
+        abort(403)
+    db.session.delete(checkin)
+    db.session.commit()
+    flash('打卡记录已删除', 'success')
+    return redirect(request.referrer or url_for('checkins_wall'))
+
+
 # ===== 私信系统 =====
 @app.route('/messages')
 @login_required
 def messages():
-    # 获取所有跟当前用户聊过天的人
     sent = db.session.query(Message.receiver_id).filter_by(sender_id=current_user.id).distinct()
     received = db.session.query(Message.sender_id).filter_by(receiver_id=current_user.id).distinct()
     user_ids = set(r[0] for r in sent) | set(r[0] for r in received)
     chat_users = User.query.filter(User.id.in_(user_ids)).all() if user_ids else []
-    # 未读消息数（每人）
     unread_counts = {}
     for u in chat_users:
         count = Message.query.filter_by(
@@ -696,18 +825,24 @@ def conversation(username):
         return redirect(url_for('messages'))
     if request.method == 'POST':
         content = request.form.get('content', '').strip()
-        if content:
-            msg = Message(sender_id=current_user.id, receiver_id=other.id, content=content)
+        voice_path = None
+        if 'voice' in request.files:
+            file = request.files['voice']
+            if file and file.filename and '.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in VOICE_EXTENSIONS:
+                ext = file.filename.rsplit('.', 1)[1].lower()
+                filename = f'voice_{uuid.uuid4().hex}.{ext}'
+                file.save(os.path.join(UPLOAD_FOLDER, filename))
+                voice_path = filename
+        if content or voice_path:
+            msg = Message(sender_id=current_user.id, receiver_id=other.id,
+                          content=content, voice_path=voice_path)
             db.session.add(msg)
             db.session.commit()
-            flash('消息已发送', 'success')
         return redirect(url_for('conversation', username=username))
-    # 获取两人之间的消息
     chat = Message.query.filter(
         ((Message.sender_id == current_user.id) & (Message.receiver_id == other.id)) |
         ((Message.sender_id == other.id) & (Message.receiver_id == current_user.id))
     ).order_by(Message.created_at.asc()).all()
-    # 标记已读
     Message.query.filter_by(receiver_id=current_user.id, sender_id=other.id, is_read=False)\
         .update({'is_read': True})
     db.session.commit()

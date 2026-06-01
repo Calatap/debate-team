@@ -4,3 +4,4 @@ flask-sqlalchemy
 Pillow
 gunicorn
 psycopg2-binary
+requests

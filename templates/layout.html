@@ -56,7 +56,11 @@
         </a>
         <a href="{{ url_for('checkins_wall') }}" class="nav-item {% if request.endpoint == 'checkins_wall' %}active{% endif %}">
             <span class="nav-icon">&#x1f4c5;</span>
-            <span class="nav-label">打卡墙</span>
+            <span class="nav-label">打卡广场</span>
+        </a>
+        <a href="{{ url_for('ai_chat') }}" class="nav-item {% if request.endpoint == 'ai_chat' %}active{% endif %}">
+            <span class="nav-icon">&#x1f916;</span>
+            <span class="nav-label">AI助手</span>
         </a>
         <a href="{{ url_for('leaderboard') }}" class="nav-item {% if request.endpoint == 'leaderboard' %}active{% endif %}">
             <span class="nav-icon">&#x1f3c6;</span>

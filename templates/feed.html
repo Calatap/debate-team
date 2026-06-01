@@ -9,14 +9,19 @@
             <span class="post-user-name">{{ current_user.display_name }}</span>
         </div>
         <form method="post" action="{{ url_for('create_post') }}" enctype="multipart/form-data">
-            <textarea name="content" class="post-input" placeholder="分享你的辩论心得、赛后感言..." required rows="3"></textarea>
+            <textarea name="content" class="post-input" placeholder="分享你的辩论心得、赛后感言..." rows="3"></textarea>
             <div class="post-actions">
                 <label class="photo-btn">
                     &#x1f4f7; 配图
                     <input type="file" name="image" accept="image/*" style="display:none"
                            onchange="previewPostImage(this)">
                 </label>
+                <label class="photo-btn voice-btn" onclick="event.preventDefault();startPostRecording(this)">
+                    &#x1f3a4; 语音
+                </label>
                 <span class="photo-preview" id="post-photo-preview"></span>
+                <input type="hidden" name="voice" id="post-voice-input" value="">
+                <span class="voice-status" id="post-voice-status"></span>
                 <button type="submit" class="btn btn-primary">&#x1f680; 发布</button>
             </div>
         </form>
@@ -37,6 +42,11 @@
                 </a>
             </div>
             <div class="feed-content">{{ post.content | nl2br }}</div>
+            {% if post.voice_path %}
+            <div class="feed-voice">
+                <audio controls class="voice-player" src="{{ url_for('uploaded_file', filename=post.voice_path) }}"></audio>
+            </div>
+            {% endif %}
             {% if post.image_path %}
             <div class="feed-image">
                 <img src="{{ url_for('uploaded_file', filename=post.image_path) }}"
@@ -61,22 +71,38 @@
             </div>
             <!-- 快捷评论 -->
             <div class="comment-section">
-                <form method="post" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form">
-                    <input type="text" name="content" placeholder="写评论..." required>
+                <form method="post" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form" enctype="multipart/form-data">
+                    <input type="text" name="content" placeholder="写评论...">
+                    <label class="voice-comment-btn" onclick="event.preventDefault();startCommentRecording(this, {{ post.id }})">&#x1f3a4;</label>
+                    <input type="hidden" name="voice" class="comment-voice-input" value="">
+                    <span class="voice-status comment-voice-status"></span>
                     <button type="submit">发送</button>
                 </form>
                 {% set comments = post.post_comments[:3] %}
                 {% if comments %}
                 <div class="comment-list">
                     {% for comment in comments %}
-                    <div class="comment-item">
+                    <div class="comment-item" id="comment-{{ comment.id }}">
                         <div class="comment-avatar">{{ comment.commenter.display_name[0] }}</div>
                         <div class="comment-body">
                             <div class="comment-header">
                                 <span class="comment-name">{{ comment.commenter.display_name }}</span>
                                 <span class="comment-time">{{ comment.time_ago() }}</span>
                             </div>
-                            <div class="comment-text">{{ comment.content[:80] }}{{ comment.content|length > 80 and '...' or '' }}</div>
+                            <div class="comment-text">
+                                {% if comment.voice_path %}
+                                <audio controls class="voice-player" src="{{ url_for('uploaded_file', filename=comment.voice_path) }}"></audio>
+                                {% endif %}
+                                {{ comment.content[:80] }}{{ comment.content|length > 80 and '...' or '' }}
+                            </div>
+                            <div class="comment-actions">
+                                {% if comment.commenter.id == current_user.id or current_user.role == 'admin' or post.author.id == current_user.id %}
+                                <form method="post" action="{{ url_for('delete_comment', comment_id=comment.id) }}"
+                                      onsubmit="return confirm('删除这条评论？')" style="display:inline">
+                                    <button class="delete-btn">删除</button>
+                                </form>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
@@ -143,6 +169,98 @@ function zoomImg(img) {
     div.onclick = function(e) { if (e.target === div) div.remove(); };
     div.querySelector('.zoom-close').onclick = function() { div.remove(); };
     document.body.appendChild(div);
+}
+
+// ===== 录音功能 =====
+var mediaRecorder = null;
+var audioChunks = [];
+var recordingFor = null;
+
+function startPostRecording(btn) {
+    var statusEl = document.getElementById('post-voice-status');
+    var inputEl = document.getElementById('post-voice-input');
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        btn.textContent = '\u{1f3a4} 语音';
+        btn.style.color = '';
+        return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        statusEl.textContent = '浏览器不支持录音';
+        return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '' });
+        recordingFor = 'post';
+        mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = function() {
+            stream.getTracks().forEach(function(t) { t.stop(); });
+            var blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+            var formData = new FormData();
+            formData.append('voice', blob, 'recording.' + (mediaRecorder.mimeType.includes('webm') ? 'webm' : 'mp3'));
+            statusEl.textContent = '上传中...';
+            fetch('/voice/upload', { method: 'POST', body: formData })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.filename) {
+                        inputEl.value = data.filename;
+                        statusEl.innerHTML = '\u{1f3b5} 已录制 <a href="' + data.url + '" target="_blank">试听</a>';
+                    } else {
+                        statusEl.textContent = '上传失败';
+                    }
+                })
+                .catch(function() { statusEl.textContent = '上传失败'; });
+        };
+        mediaRecorder.start();
+        btn.textContent = '\u{23f9} 停止录音';
+        btn.style.color = '#f44336';
+        statusEl.textContent = '录音中...';
+    }).catch(function() { statusEl.textContent = '无法访问麦克风'; });
+}
+
+function startCommentRecording(btn, postId) {
+    var form = btn.closest('.comment-form');
+    var statusEl = form.querySelector('.comment-voice-status');
+    var inputEl = form.querySelector('.comment-voice-input');
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        btn.textContent = '\u{1f3a4}';
+        btn.style.color = '';
+        return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        statusEl.textContent = '不支持录音';
+        return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '' });
+        recordingFor = 'comment-' + postId;
+        mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = function() {
+            stream.getTracks().forEach(function(t) { t.stop(); });
+            var blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+            var formData = new FormData();
+            formData.append('voice', blob, 'recording.' + (mediaRecorder.mimeType.includes('webm') ? 'webm' : 'mp3'));
+            statusEl.textContent = '上传中...';
+            fetch('/voice/upload', { method: 'POST', body: formData })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.filename) {
+                        inputEl.value = data.filename;
+                        statusEl.innerHTML = '\u{1f3b5} <a href="' + data.url + '" target="_blank">试听</a>';
+                    } else {
+                        statusEl.textContent = '上传失败';
+                    }
+                })
+                .catch(function() { statusEl.textContent = '上传失败'; });
+        };
+        mediaRecorder.start();
+        btn.textContent = '\u{23f9}';
+        btn.style.color = '#f44336';
+        statusEl.textContent = '录音中...';
+    }).catch(function() { statusEl.textContent = '无法访问麦克风'; });
 }
 </script>
 {% endblock %}

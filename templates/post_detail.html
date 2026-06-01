@@ -15,6 +15,11 @@
             </a>
         </div>
         <div class="feed-content">{{ post.content | nl2br }}</div>
+        {% if post.voice_path %}
+        <div class="feed-voice">
+            <audio controls class="voice-player" src="{{ url_for('uploaded_file', filename=post.voice_path) }}"></audio>
+        </div>
+        {% endif %}
         {% if post.image_path %}
         <div class="feed-image">
             <img src="{{ url_for('uploaded_file', filename=post.image_path) }}" alt="配图" onclick="zoomImg(this)">
@@ -36,8 +41,11 @@
 
         <!-- 评论区 -->
         <div class="comment-section">
-            <form method="post" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form">
-                <input type="text" name="content" placeholder="写评论..." required>
+            <form method="post" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form" enctype="multipart/form-data">
+                <input type="text" name="content" placeholder="写评论...">
+                <label class="voice-comment-btn" onclick="event.preventDefault();startCommentRecording(this, {{ post.id }})">&#x1f3a4;</label>
+                <input type="hidden" name="voice" class="comment-voice-input" value="">
+                <span class="voice-status comment-voice-status"></span>
                 <button type="submit">发送</button>
             </form>
             <div class="comment-list">
@@ -49,10 +57,15 @@
                             <a href="{{ url_for('profile', username=comment.commenter.username) }}" class="comment-name">{{ comment.commenter.display_name }}</a>
                             <span class="comment-time">{{ comment.time_ago() }}</span>
                         </div>
-                        <div class="comment-text">{{ comment.content }}</div>
+                        <div class="comment-text">
+                            {% if comment.voice_path %}
+                            <audio controls class="voice-player" src="{{ url_for('uploaded_file', filename=comment.voice_path) }}"></audio>
+                            {% endif %}
+                            {{ comment.content }}
+                        </div>
                         <div class="comment-actions">
                             <button onclick="showReplyForm('reply-{{ comment.id }}')">回复</button>
-                            {% if comment.commenter.id == current_user.id or current_user.role == 'admin' %}
+                            {% if comment.commenter.id == current_user.id or current_user.role == 'admin' or post.author.id == current_user.id %}
                             <form method="post" action="{{ url_for('delete_comment', comment_id=comment.id) }}"
                                   onsubmit="return confirm('删除这条评论？')" style="display:inline">
                                 <button class="delete-btn">删除</button>
@@ -75,8 +88,11 @@
                                         <span class="comment-name">{{ reply.commenter.display_name }}</span>
                                         <span class="comment-time">{{ reply.time_ago() }}</span>
                                     </div>
-                                    <div class="comment-text">{{ reply.content }}</div>
-                                    {% if reply.commenter.id == current_user.id or current_user.role == 'admin' %}
+                                    <div class="comment-text">{{ reply.content }}
+                                    {% if reply.voice_path %}
+                                    <audio controls class="voice-player" src="{{ url_for('uploaded_file', filename=reply.voice_path) }}"></audio>
+                                    {% endif %}</div>
+                                    {% if reply.commenter.id == current_user.id or current_user.role == 'admin' or post.author.id == current_user.id %}
                                     <div class="comment-actions">
                                         <form method="post" action="{{ url_for('delete_comment', comment_id=reply.id) }}"
                                               onsubmit="return confirm('删除这条回复？')" style="display:inline">
@@ -114,6 +130,51 @@ function zoomImg(img) {
     d.onclick = function(e) { if (e.target === d) d.remove(); };
     d.querySelector('.zoom-close').onclick = function() { d.remove(); };
     document.body.appendChild(d);
+}
+
+var mediaRecorder = null;
+var audioChunks = [];
+function startCommentRecording(btn, postId) {
+    var form = btn.closest('.comment-form');
+    var statusEl = form.querySelector('.comment-voice-status');
+    var inputEl = form.querySelector('.comment-voice-input');
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        btn.textContent = '\u{1f3a4}';
+        btn.style.color = '';
+        return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        statusEl.textContent = '不支持录音';
+        return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '' });
+        mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = function() {
+            stream.getTracks().forEach(function(t) { t.stop(); });
+            var blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+            var formData = new FormData();
+            formData.append('voice', blob, 'recording.' + (mediaRecorder.mimeType.includes('webm') ? 'webm' : 'mp3'));
+            statusEl.textContent = '上传中...';
+            fetch('/voice/upload', { method: 'POST', body: formData })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.filename) {
+                        inputEl.value = data.filename;
+                        statusEl.innerHTML = '\u{1f3b5} <a href="' + data.url + '" target="_blank">试听</a>';
+                    } else {
+                        statusEl.textContent = '上传失败';
+                    }
+                })
+                .catch(function() { statusEl.textContent = '上传失败'; });
+        };
+        mediaRecorder.start();
+        btn.textContent = '\u{23f9}';
+        btn.style.color = '#f44336';
+        statusEl.textContent = '录音中...';
+    }).catch(function() { statusEl.textContent = '无法访问麦克风'; });
 }
 </script>
 {% endblock %}

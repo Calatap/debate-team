@@ -1,9 +1,9 @@
 {% extends "layout.html" %}
-{% block title %}打卡墙 - 辩论队{% endblock %}
+{% block title %}打卡广场 - 辩论队{% endblock %}
 {% block content %}
 <div class="checkin-page">
     <div class="section-header">
-        <h2>&#x1f4c5; 全员打卡墙</h2>
+        <h2>&#x1f4c5; 全员打卡广场</h2>
     </div>
 
     {% if checkins.items %}
@@ -22,6 +22,14 @@
             {% if c.photo_path %}
             <div class="checkin-wall-photo">
                 <img src="{{ url_for('uploaded_file', filename=c.photo_path) }}" alt="打卡照片" onclick="zoomImg(this)">
+            </div>
+            {% endif %}
+            {% if current_user.role == 'admin' %}
+            <div style="margin-top:8px;">
+                <form method="post" action="{{ url_for('delete_checkin', checkin_id=c.id) }}"
+                      onsubmit="return confirm('确定删除这条打卡记录？')" style="display:inline">
+                    <button class="post-delete-btn">&#x1f5d1; 删除</button>
+                </form>
             </div>
             {% endif %}
         </div>
