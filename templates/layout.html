@@ -15,6 +15,9 @@
             {% if current_user.is_authenticated %}
             <div class="top-right">
                 <span class="points-badge">&#x2b50; {{ current_user.total_points }}</span>
+                {% if current_user.role == 'admin' %}
+                <a href="{{ url_for('admin_backups') }}" class="admin-link" title="数据库备份">&#x1f4be;</a>
+                {% endif %}
                 <a href="{{ url_for('profile', username=current_user.username) }}" class="user-link">
                     {{ current_user.display_name }}
                 </a>

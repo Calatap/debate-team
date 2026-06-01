@@ -1,6 +1,7 @@
 import os
 import uuid
-from datetime import date, datetime
+import subprocess
+from datetime import date, datetime, timedelta
 
 from flask import (Flask, render_template, redirect, url_for, request,
                    flash, jsonify, send_from_directory, abort)
@@ -8,8 +9,9 @@ from flask_login import (LoginManager, login_user, logout_user,
                          login_required, current_user)
 from markupsafe import escape
 from werkzeug.utils import secure_filename
+from apscheduler.schedulers.background import BackgroundScheduler
 
-from models import db, User, Post, CheckIn, KnowledgeArticle, KnowledgeAttachment, LearningRecord, PointsLog, Comment, Message, AIChat
+from models import db, User, Post, CheckIn, KnowledgeArticle, KnowledgeAttachment, LearningRecord, PointsLog, Comment, Message, AIChat, BackupLog
 
 # ===== 配置 =====
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -34,6 +36,47 @@ login_manager.login_view = 'login'
 login_manager.login_message = '请先登录'
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+BACKUP_FOLDER = os.path.join(BASE_DIR, 'backups')
+os.makedirs(BACKUP_FOLDER, exist_ok=True)
+
+# ===== 自动备份调度器 =====
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=lambda: auto_backup(), trigger='interval', hours=24, id='daily_backup', replace_existing=True)
+scheduler.start()
+
+
+def auto_backup():
+    """自动备份（无痕执行，不通知管理员）"""
+    with app.app_context():
+        try:
+            db_url = app.config['SQLALCHEMY_DATABASE_URI']
+            ts = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            filename = f'backup_{ts}.sql'
+            filepath = os.path.join(BACKUP_FOLDER, filename)
+
+            if db_url.startswith('sqlite'):
+                subprocess.run(['sqlite3', db_url.replace('sqlite:///', ''), '.dump'],
+                               stdout=open(filepath, 'w', encoding='utf-8'), check=True, timeout=120)
+            else:
+                subprocess.run(['pg_dump', '--no-owner', '--no-acl', '-f', filepath, db_url],
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=120)
+
+            size = os.path.getsize(filepath)
+            log = BackupLog(filename=filename, file_size=size, status='success', notes='自动备份')
+            db.session.add(log)
+            db.session.commit()
+
+            # 只保留最近 30 个备份文件
+            old_logs = BackupLog.query.order_by(BackupLog.created_at.desc()).offset(30).all()
+            for old in old_logs:
+                old_path = os.path.join(BACKUP_FOLDER, old.filename)
+                if os.path.exists(old_path):
+                    os.remove(old_path)
+                db.session.delete(old)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
 # ===== 管理员默认密码 =====
 ADMIN_PASSWORD = 'admin123'
@@ -797,6 +840,103 @@ def ai_clear():
     db.session.commit()
     flash('对话记录已清空', 'success')
     return redirect(url_for('ai_chat'))
+
+
+# ===== 数据库备份与恢复（仅管理员） =====
+@app.route('/admin/backups')
+@login_required
+def admin_backups():
+    if current_user.role != 'admin':
+        abort(403)
+    page = request.args.get('page', 1, type=int)
+    backups = BackupLog.query.order_by(BackupLog.created_at.desc())\
+        .paginate(page=page, per_page=20, error_out=False)
+    return render_template('admin_backups.html', backups=backups)
+
+
+@app.route('/admin/backup/create', methods=['POST'])
+@login_required
+def admin_create_backup():
+    if current_user.role != 'admin':
+        abort(403)
+    try:
+        db_url = app.config['SQLALCHEMY_DATABASE_URI']
+        ts = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        filename = f'backup_{current_user.username}_{ts}.sql'
+        filepath = os.path.join(BACKUP_FOLDER, filename)
+
+        if db_url.startswith('sqlite'):
+            subprocess.run(['sqlite3', db_url.replace('sqlite:///', ''), '.dump'],
+                           stdout=open(filepath, 'w', encoding='utf-8'), check=True, timeout=120)
+        else:
+            subprocess.run(['pg_dump', '--no-owner', '--no-acl', '-f', filepath, db_url],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=120)
+
+        size = os.path.getsize(filepath)
+        log = BackupLog(filename=filename, file_size=size, status='success',
+                        notes=f'手动备份 by {current_user.username}')
+        db.session.add(log)
+        db.session.commit()
+        flash(f'备份成功！({size / 1024:.1f} KB)', 'success')
+    except subprocess.TimeoutExpired:
+        flash('备份超时，请重试', 'danger')
+    except subprocess.CalledProcessError as e:
+        flash(f'备份失败：{e.stderr.decode() if e.stderr else str(e)}', 'danger')
+    except Exception as e:
+        flash(f'备份失败：{str(e)}', 'danger')
+    return redirect(url_for('admin_backups'))
+
+
+@app.route('/admin/backup/<int:backup_id>/restore', methods=['POST'])
+@login_required
+def admin_restore_backup(backup_id):
+    if current_user.role != 'admin':
+        abort(403)
+    backup = BackupLog.query.get_or_404(backup_id)
+    filepath = os.path.join(BACKUP_FOLDER, backup.filename)
+    if not os.path.exists(filepath):
+        flash('备份文件不存在', 'danger')
+        return redirect(url_for('admin_backups'))
+    try:
+        db_url = app.config['SQLALCHEMY_DATABASE_URI']
+        if db_url.startswith('sqlite'):
+            subprocess.run(['sqlite3', db_url.replace('sqlite:///', ''), '.read', filepath],
+                           check=True, timeout=300)
+        else:
+            subprocess.run(['psql', '-f', filepath, db_url],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=300)
+        flash('恢复成功！', 'success')
+    except subprocess.TimeoutExpired:
+        flash('恢复超时', 'danger')
+    except subprocess.CalledProcessError as e:
+        flash(f'恢复失败：{e.stderr.decode() if e.stderr else str(e)}', 'danger')
+    except Exception as e:
+        flash(f'恢复失败：{str(e)}', 'danger')
+    return redirect(url_for('admin_backups'))
+
+
+@app.route('/admin/backup/<int:backup_id>/download')
+@login_required
+def admin_download_backup(backup_id):
+    if current_user.role != 'admin':
+        abort(403)
+    backup = BackupLog.query.get_or_404(backup_id)
+    return send_from_directory(BACKUP_FOLDER, backup.filename, as_attachment=True)
+
+
+@app.route('/admin/backup/<int:backup_id>/delete', methods=['POST'])
+@login_required
+def admin_delete_backup(backup_id):
+    if current_user.role != 'admin':
+        abort(403)
+    backup = BackupLog.query.get_or_404(backup_id)
+    filepath = os.path.join(BACKUP_FOLDER, backup.filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+    db.session.delete(backup)
+    db.session.commit()
+    flash('备份已删除', 'success')
+    return redirect(url_for('admin_backups'))
 
 
 # ===== 管理员删除打卡 =====

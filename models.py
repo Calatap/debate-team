@@ -186,6 +186,26 @@ class KnowledgeAttachment(db.Model):
     article = db.relationship('KnowledgeArticle', backref='attachments', lazy='joined')
 
 
+class BackupLog(db.Model):
+    __tablename__ = 'backup_log'
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(200), nullable=False)
+    file_size = db.Column(db.Integer, default=0)
+    status = db.Column(db.String(20), default='success')
+    notes = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def time_ago(self):
+        diff = datetime.utcnow() - self.created_at
+        if diff.days > 0:
+            return f'{diff.days}天前'
+        if diff.seconds >= 3600:
+            return f'{diff.seconds // 3600}小时前'
+        if diff.seconds >= 60:
+            return f'{diff.seconds // 60}分钟前'
+        return '刚刚'
+
+
 class AIChat(db.Model):
     __tablename__ = 'ai_chat'
     id = db.Column(db.Integer, primary_key=True)
