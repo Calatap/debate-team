@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+{% block title %}与 {{ other.display_name }} 的私信 - 辩论队{% endblock %}
+{% block content %}
+<a href="{{ url_for('messages') }}" class="back-link">&larr; 返回私信列表</a>
+
+<div class="chat-conversation">
+    <div class="chat-header">
+        &#x1f464; 与 <strong>{{ other.display_name }}</strong> 的对话
+    </div>
+    <div class="chat-messages" id="chat-messages">
+        {% if chat %}
+        {% for msg in chat %}
+        <div class="chat-msg {% if msg.sender_id == current_user.id %}sent{% else %}received{% endif %}">
+            {{ msg.content }}
+            <span class="time">{{ msg.created_at.strftime('%m/%d %H:%M') }}</span>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div style="text-align:center;color:var(--text-light);padding:40px 0;">
+            还没有消息，发一条吧
+        </div>
+        {% endif %}
+    </div>
+    <form method="post" class="chat-input-area">
+        <input type="text" name="content" placeholder="输入消息..." required autofocus>
+        <button type="submit">&#x1f680; 发送</button>
+    </form>
+</div>
+
+<script>
+// 自动滚动到底部
+document.addEventListener('DOMContentLoaded', function() {
+    var container = document.getElementById('chat-messages');
+    container.scrollTop = container.scrollHeight;
+});
+</script>
+{% endblock %}

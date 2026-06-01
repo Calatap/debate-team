@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+{% block title %}私信 - 辩论队{% endblock %}
+{% block content %}
+<div class="feed-page">
+    <div class="section-header">
+        <h2>&#x1f4ec; 私信</h2>
+        {% if unread_count > 0 %}
+        <span style="background:var(--danger);color:#fff;padding:2px 10px;border-radius:10px;font-size:13px;">
+            {{ unread_count }} 条未读
+        </span>
+        {% endif %}
+    </div>
+
+    {% if chat_users %}
+    <div class="chat-user-list">
+        {% for u in chat_users %}
+        {% set unread = unread_counts.get(u.id, 0) %}
+        <a href="{{ url_for('conversation', username=u.username) }}" class="chat-user-card">
+            <div class="rank-avatar">{{ u.display_name[0] }}</div>
+            <div>
+                <div style="font-weight:600;">{{ u.display_name }}</div>
+                <div style="font-size:12px;color:var(--text-light);">@{{ u.username }}</div>
+            </div>
+            {% if unread > 0 %}
+            <span class="unread-badge">{{ unread }}</span>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="messages-empty">
+        <div class="icon">&#x1f4ec;</div>
+        <h3>还没有消息</h3>
+        <p>去队员的个人主页给他发私信吧</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

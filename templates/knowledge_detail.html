@@ -18,6 +18,41 @@
             {{ article.content | replace('\n', '<br>') | safe }}
         </div>
 
+        <!-- 附件列表 -->
+        {% set attachments = article.attachments %}
+        {% if attachments %}
+        <div style="margin-bottom:16px;">
+            <div style="font-weight:600;font-size:14px;margin-bottom:8px;">&#x1f4ce; 附件下载</div>
+            <div class="attachment-list">
+                {% for att in attachments %}
+                <div class="attachment-item">
+                    <span>&#x1f4c4;</span>
+                    <a href="{{ url_for('uploaded_file', filename=att.file_path) }}" target="_blank">{{ att.filename }}</a>
+                    {% if current_user.role == 'admin' %}
+                    <form method="post" action="{{ url_for('delete_attachment', att_id=att.id) }}" style="display:inline"
+                          onsubmit="return confirm('删除此附件？')">
+                        <button class="del-att-btn">&times;</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 上传附件（管理员） -->
+        {% if current_user.role == 'admin' %}
+        <div style="margin-bottom:16px;padding:12px;background:var(--bg);border-radius:10px;">
+            <form method="post" action="{{ url_for('upload_attachment', article_id=article.id) }}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <span style="font-size:14px;">&#x1f4ce; 上传附件：</span>
+                <input type="file" name="file" required style="font-size:13px;flex:1;min-width:120px;">
+                <button type="submit" class="btn btn-sm">上传</button>
+            </form>
+            <div style="font-size:11px;color:var(--text-light);margin-top:4px;">支持 Word、PPT、PDF、图片等</div>
+        </div>
+        {% endif %}
+
+        <!-- 学习按钮 -->
         <div class="article-detail-footer">
             {% if learned %}
             <div class="learned-badge">&#x2705; 已学习 &#x2b50;+{{ article.points }}</div>

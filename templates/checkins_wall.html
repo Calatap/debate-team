@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% block title %}打卡墙 - 辩论队{% endblock %}
+{% block content %}
+<div class="checkin-page">
+    <div class="section-header">
+        <h2>&#x1f4c5; 全员打卡墙</h2>
+    </div>
+
+    {% if checkins.items %}
+    {% for c in checkins.items %}
+    <div class="checkin-wall-card">
+        <a href="{{ url_for('profile', username=c.user.username) }}" class="checkin-wall-avatar">{{ c.user.display_name[0] }}</a>
+        <div class="checkin-wall-body">
+            <div>
+                <a href="{{ url_for('profile', username=c.user.username) }}" class="checkin-wall-user">{{ c.user.display_name }}</a>
+                <span class="checkin-wall-date">{{ c.date.strftime('%m/%d') }}</span>
+            </div>
+            {% if c.description %}
+            <div class="checkin-wall-desc">{{ c.description }}</div>
+            {% endif %}
+            <div class="checkin-wall-points">&#x2b50; +{{ c.points }} 分</div>
+            {% if c.photo_path %}
+            <div class="checkin-wall-photo">
+                <img src="{{ url_for('uploaded_file', filename=c.photo_path) }}" alt="打卡照片" onclick="zoomImg(this)">
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    {% if checkins.pages > 1 %}
+    <div class="pagination">
+        {% if checkins.has_prev %}
+        <a href="{{ url_for('checkins_wall', page=checkins.prev_num) }}" class="page-btn">上一页</a>
+        {% endif %}
+        <span class="page-info">{{ checkins.page }} / {{ checkins.pages }}</span>
+        {% if checkins.has_next %}
+        <a href="{{ url_for('checkins_wall', page=checkins.next_num) }}" class="page-btn">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">&#x1f4c6;</div>
+        <h3>还没有打卡记录</h3>
+        <p>第一个打卡的人会出现在这里！</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function zoomImg(img) {
+    const d = document.createElement('div'); d.className = 'img-zoom-overlay';
+    d.innerHTML = '<span class="zoom-close">&times;</span><img src="'+img.src+'" class="zoom-img">';
+    d.onclick = function(e) { if (e.target === d) d.remove(); };
+    d.querySelector('.zoom-close').onclick = function() { d.remove(); };
+    document.body.appendChild(d);
+}
+</script>
+{% endblock %}

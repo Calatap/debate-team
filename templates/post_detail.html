@@ -1,0 +1,119 @@
+{% extends "layout.html" %}
+{% block title %}动态详情 - 辩论队{% endblock %}
+{% block content %}
+<div class="feed-page">
+    <a href="{{ url_for('feed') }}" class="back-link">&larr; 返回动态</a>
+
+    <div class="feed-card">
+        <div class="feed-card-header">
+            <a href="{{ url_for('profile', username=post.author.username) }}" class="feed-author">
+                <span class="feed-avatar">{{ post.author.display_name[0] }}</span>
+                <div>
+                    <div class="feed-name">{{ post.author.display_name }}</div>
+                    <div class="feed-time">{{ post.time_ago() }}</div>
+                </div>
+            </a>
+        </div>
+        <div class="feed-content">{{ post.content | nl2br }}</div>
+        {% if post.image_path %}
+        <div class="feed-image">
+            <img src="{{ url_for('uploaded_file', filename=post.image_path) }}" alt="配图" onclick="zoomImg(this)">
+        </div>
+        {% endif %}
+        <div class="feed-card-footer">
+            <div class="post-actions-bar">
+                <button class="like-btn" onclick="likePost({{ post.id }}, this)">
+                    &#x2764; <span class="like-count">{{ post.likes }}</span>
+                </button>
+                {% if post.author.id == current_user.id or current_user.role == 'admin' %}
+                <form method="post" action="{{ url_for('delete_post', post_id=post.id) }}" style="display:inline"
+                      onsubmit="return confirm('确定要删除吗？')">
+                    <button class="post-delete-btn">&#x1f5d1; 删除</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 评论区 -->
+        <div class="comment-section">
+            <form method="post" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form">
+                <input type="text" name="content" placeholder="写评论..." required>
+                <button type="submit">发送</button>
+            </form>
+            <div class="comment-list">
+                {% for comment in comments %}
+                <div class="comment-item" id="comment-{{ comment.id }}">
+                    <div class="comment-avatar">{{ comment.commenter.display_name[0] }}</div>
+                    <div class="comment-body">
+                        <div class="comment-header">
+                            <a href="{{ url_for('profile', username=comment.commenter.username) }}" class="comment-name">{{ comment.commenter.display_name }}</a>
+                            <span class="comment-time">{{ comment.time_ago() }}</span>
+                        </div>
+                        <div class="comment-text">{{ comment.content }}</div>
+                        <div class="comment-actions">
+                            <button onclick="showReplyForm('reply-{{ comment.id }}')">回复</button>
+                            {% if comment.commenter.id == current_user.id or current_user.role == 'admin' %}
+                            <form method="post" action="{{ url_for('delete_comment', comment_id=comment.id) }}"
+                                  onsubmit="return confirm('删除这条评论？')" style="display:inline">
+                                <button class="delete-btn">删除</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        <form method="post" action="{{ url_for('reply_comment', comment_id=comment.id) }}"
+                              class="reply-form" id="reply-{{ comment.id }}" style="display:none">
+                            <input type="text" name="content" placeholder="回复 {{ comment.commenter.display_name }}..." required>
+                            <button type="submit">回复</button>
+                        </form>
+                        {% set replies = comment.replies %}
+                        {% if replies %}
+                        <div class="replies">
+                            {% for reply in replies %}
+                            <div class="comment-item">
+                                <div class="comment-avatar">{{ reply.commenter.display_name[0] }}</div>
+                                <div class="comment-body">
+                                    <div class="comment-header">
+                                        <span class="comment-name">{{ reply.commenter.display_name }}</span>
+                                        <span class="comment-time">{{ reply.time_ago() }}</span>
+                                    </div>
+                                    <div class="comment-text">{{ reply.content }}</div>
+                                    {% if reply.commenter.id == current_user.id or current_user.role == 'admin' %}
+                                    <div class="comment-actions">
+                                        <form method="post" action="{{ url_for('delete_comment', comment_id=reply.id) }}"
+                                              onsubmit="return confirm('删除这条回复？')" style="display:inline">
+                                            <button class="delete-btn">删除</button>
+                                        </form>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showReplyForm(id) {
+    var form = document.getElementById(id);
+    form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+    if (form.style.display === 'flex') form.querySelector('input').focus();
+}
+function likePost(postId, btn) {
+    fetch('/post/' + postId + '/like', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => { btn.querySelector('.like-count').textContent = d.likes; btn.classList.add('liked'); });
+}
+function zoomImg(img) {
+    const d = document.createElement('div'); d.className = 'img-zoom-overlay';
+    d.innerHTML = '<span class="zoom-close">&times;</span><img src="'+img.src+'" class="zoom-img">';
+    d.onclick = function(e) { if (e.target === d) d.remove(); };
+    d.querySelector('.zoom-close').onclick = function() { d.remove(); };
+    document.body.appendChild(d);
+}
+</script>
+{% endblock %}

@@ -131,3 +131,53 @@ class PointsLog(db.Model):
     points = db.Column(db.Integer, nullable=False)
     description = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Comment(db.Model):
+    __tablename__ = 'comment'
+    id = db.Column(db.Integer, primary_key=True)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    post = db.relationship('Post', backref='post_comments', lazy='select')
+    commenter = db.relationship('User', backref='user_comments', lazy='select')
+    replies = db.relationship('Comment', backref='parent', lazy='select',
+                               remote_side=[id])
+
+    def time_ago(self):
+        diff = datetime.utcnow() - self.created_at
+        if diff.days > 0:
+            return f'{diff.days}天前'
+        if diff.seconds >= 3600:
+            return f'{diff.seconds // 3600}小时前'
+        if diff.seconds >= 60:
+            return f'{diff.seconds // 60}分钟前'
+        return '刚刚'
+
+
+class Message(db.Model):
+    __tablename__ = 'message'
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    content = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages', lazy='joined')
+    receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_messages', lazy='joined')
+
+
+class KnowledgeAttachment(db.Model):
+    __tablename__ = 'knowledge_attachment'
+    id = db.Column(db.Integer, primary_key=True)
+    article_id = db.Column(db.Integer, db.ForeignKey('knowledge_article.id'), nullable=False)
+    filename = db.Column(db.String(200), nullable=False)
+    file_path = db.Column(db.String(200), nullable=False)
+    file_type = db.Column(db.String(20))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    article = db.relationship('KnowledgeArticle', backref='attachments', lazy='joined')

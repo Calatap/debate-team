@@ -33,6 +33,16 @@
         <div class="profile-join">
             &#x1f4c5; 加入于 {{ user.joined_at.strftime('%Y年%m月%d日') }}
         </div>
+        {% if user.id == current_user.id %}
+        <div style="margin-top:12px;">
+            <a href="{{ url_for('settings') }}" class="btn btn-sm">&#x2699; 编辑资料</a>
+            <a href="{{ url_for('messages') }}" class="btn btn-sm">&#x1f4ec; 私信</a>
+        </div>
+        {% else %}
+        <div style="margin-top:12px;">
+            <a href="{{ url_for('conversation', username=user.username) }}" class="btn btn-sm">&#x1f4ec; 发私信</a>
+        </div>
+        {% endif %}
     </div>
 
     <!-- 个人动态 -->
@@ -52,7 +62,15 @@
             {% endif %}
             <div class="feed-card-footer">
                 <span class="feed-time">{{ post.time_ago() }}</span>
-                <span>&#x2764; {{ post.likes }}</span>
+                <div>
+                    <span>&#x2764; {{ post.likes }}</span>
+                    {% if post.author.id == current_user.id or current_user.role == 'admin' %}
+                    <form method="post" action="{{ url_for('delete_post', post_id=post.id) }}" style="display:inline"
+                          onsubmit="return confirm('确定要删除吗？')">
+                        <button class="post-delete-btn">&#x1f5d1;</button>
+                    </form>
+                    {% endif %}
+                </div>
             </div>
         </div>
         {% endfor %}

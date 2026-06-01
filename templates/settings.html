@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+{% block title %}个人设置 - 辩论队{% endblock %}
+{% block content %}
+<div class="settings-card">
+    <h2>&#x2699; 个人设置</h2>
+    <form method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>当前头像</label>
+            <div>
+                {% if current_user.avatar and current_user.avatar != 'default.svg' %}
+                <img src="{{ url_for('uploaded_file', filename=current_user.avatar) }}" class="avatar-preview">
+                {% else %}
+                <div class="avatar-preview" style="display:flex;align-items:center;justify-content:center;background:var(--primary-light);color:#fff;font-size:32px;">
+                    {{ current_user.display_name[0] }}
+                </div>
+                {% endif %}
+            </div>
+            <label style="margin-top:8px;">更换头像</label>
+            <input type="file" name="avatar" accept="image/*">
+        </div>
+        <div class="form-group">
+            <label for="display_name">昵称</label>
+            <input type="text" id="display_name" name="display_name"
+                   value="{{ current_user.display_name }}" maxlength="20">
+        </div>
+        <div class="form-group">
+            <label>用户名（不可修改）</label>
+            <input type="text" value="{{ current_user.username }}" disabled style="opacity:0.6;">
+        </div>
+        <div class="form-group">
+            <label>角色</label>
+            <input type="text" value="{{ current_user.role == 'admin' and '管理员' or '队员' }}" disabled style="opacity:0.6;">
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">&#x1f504; 保存修改</button>
+    </form>
+</div>
+{% endblock %}

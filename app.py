@@ -9,16 +9,19 @@ from flask_login import (LoginManager, login_user, logout_user,
 from markupsafe import escape
 from werkzeug.utils import secure_filename
 
-from models import db, User, Post, CheckIn, KnowledgeArticle, LearningRecord, PointsLog
+from models import db, User, Post, CheckIn, KnowledgeArticle, KnowledgeAttachment, LearningRecord, PointsLog, Comment, Message
 
 # ===== 配置 =====
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'mp4'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'mp4', 'doc', 'docx', 'ppt', 'pptx', 'pdf', 'mp3', 'wav', 'ogg'}
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'debate-team-secret-key-2025')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(BASE_DIR, 'debate.db')
+# Railway 使用 PostgreSQL，本地开发用 SQLite
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'DATABASE_URL', 'sqlite:///' + os.path.join(BASE_DIR, 'debate.db')
+).replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -418,6 +421,7 @@ def checkin():
             points=points
         )
         db.session.add(checkin)
+        create_checkin_post(checkin)
         current_user.add_points(points, 'checkin', f'每日打卡{bonus > 0 and "（连续奖励）" or ""}')
         db.session.commit()
 
@@ -551,6 +555,210 @@ def profile(username):
 @login_required
 def my_profile():
     return redirect(url_for('profile', username=current_user.username))
+
+
+@app.route('/claim-admin')
+@login_required
+def claim_admin():
+    """把自己设为管理员"""
+    current_user.role = 'admin'
+    db.session.commit()
+    flash(f'🎉 {current_user.display_name} 已成为管理员！', 'success')
+    return redirect(url_for('my_profile'))
+
+
+# ===== 评论系统 =====
+@app.route('/post/<int:post_id>/comment', methods=['POST'])
+@login_required
+def add_comment(post_id):
+    post = Post.query.get_or_404(post_id)
+    content = request.form.get('content', '').strip()
+    if not content:
+        flash('评论不能为空', 'danger')
+        return redirect(url_for('feed'))
+    comment = Comment(post_id=post_id, user_id=current_user.id, content=content)
+    db.session.add(comment)
+    current_user.add_points(1, 'comment', '发表评论')
+    db.session.commit()
+    return redirect(request.referrer or url_for('feed') + f'#comment-{comment.id}')
+
+
+@app.route('/comment/<int:comment_id>/reply', methods=['POST'])
+@login_required
+def reply_comment(comment_id):
+    parent = Comment.query.get_or_404(comment_id)
+    content = request.form.get('content', '').strip()
+    if not content:
+        flash('回复不能为空', 'danger')
+        return redirect(url_for('feed'))
+    reply = Comment(post_id=parent.post_id, user_id=current_user.id,
+                    content=content, parent_id=comment_id)
+    db.session.add(reply)
+    db.session.commit()
+    return redirect(request.referrer or url_for('feed'))
+
+
+@app.route('/comment/<int:comment_id>/delete', methods=['POST'])
+@login_required
+def delete_comment(comment_id):
+    comment = Comment.query.get_or_404(comment_id)
+    if comment.commenter.id != current_user.id and current_user.role != 'admin':
+        abort(403)
+    post_id = comment.post_id
+    db.session.delete(comment)
+    db.session.commit()
+    flash('评论已删除', 'success')
+    return redirect(request.referrer or url_for('feed'))
+
+
+# ===== 帖子详情（含评论） =====
+@app.route('/post/<int:post_id>')
+@login_required
+def post_detail(post_id):
+    post = Post.query.get_or_404(post_id)
+    comments = Comment.query.filter_by(post_id=post_id, parent_id=None)\
+        .order_by(Comment.created_at.asc()).all()
+    return render_template('post_detail.html', post=post, comments=comments)
+
+
+# ===== 管理员/用户删除帖子 =====
+@app.route('/post/<int:post_id>/delete', methods=['POST'])
+@login_required
+def delete_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    if post.author.id != current_user.id and current_user.role != 'admin':
+        abort(403)
+    Comment.query.filter_by(post_id=post_id).delete()
+    db.session.delete(post)
+    db.session.commit()
+    flash('动态已删除', 'success')
+    return redirect(url_for('feed'))
+
+
+# ===== 打卡专栏 =====
+@app.route('/checkins-wall')
+@login_required
+def checkins_wall():
+    page = request.args.get('page', 1, type=int)
+    checkins = CheckIn.query.order_by(CheckIn.created_at.desc())\
+        .paginate(page=page, per_page=20, error_out=False)
+    return render_template('checkins_wall.html', checkins=checkins)
+
+
+# ===== 个人设置 =====
+@app.route('/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    if request.method == 'POST':
+        display_name = request.form.get('display_name', '').strip()
+        if display_name:
+            current_user.display_name = display_name
+        if 'avatar' in request.files:
+            file = request.files['avatar']
+            if file and file.filename and allowed_file(file.filename):
+                ext = file.filename.rsplit('.', 1)[1].lower()
+                filename = f'avatar_{current_user.id}_{uuid.uuid4().hex[:8]}.{ext}'
+                file.save(os.path.join(UPLOAD_FOLDER, filename))
+                current_user.avatar = filename
+        db.session.commit()
+        flash('个人资料已更新', 'success')
+        return redirect(url_for('settings'))
+    return render_template('settings.html')
+
+
+# ===== 私信系统 =====
+@app.route('/messages')
+@login_required
+def messages():
+    # 获取所有跟当前用户聊过天的人
+    sent = db.session.query(Message.receiver_id).filter_by(sender_id=current_user.id).distinct()
+    received = db.session.query(Message.sender_id).filter_by(receiver_id=current_user.id).distinct()
+    user_ids = set(r[0] for r in sent) | set(r[0] for r in received)
+    chat_users = User.query.filter(User.id.in_(user_ids)).all() if user_ids else []
+    # 未读消息数（每人）
+    unread_counts = {}
+    for u in chat_users:
+        count = Message.query.filter_by(
+            receiver_id=current_user.id, sender_id=u.id, is_read=False).count()
+        if count:
+            unread_counts[u.id] = count
+    unread_total = sum(unread_counts.values())
+    return render_template('messages.html', chat_users=chat_users,
+                           unread_counts=unread_counts, unread_count=unread_total)
+
+
+@app.route('/messages/<username>', methods=['GET', 'POST'])
+@login_required
+def conversation(username):
+    other = User.query.filter_by(username=username).first_or_404()
+    if other.id == current_user.id:
+        flash('不能给自己发消息', 'warning')
+        return redirect(url_for('messages'))
+    if request.method == 'POST':
+        content = request.form.get('content', '').strip()
+        if content:
+            msg = Message(sender_id=current_user.id, receiver_id=other.id, content=content)
+            db.session.add(msg)
+            db.session.commit()
+            flash('消息已发送', 'success')
+        return redirect(url_for('conversation', username=username))
+    # 获取两人之间的消息
+    chat = Message.query.filter(
+        ((Message.sender_id == current_user.id) & (Message.receiver_id == other.id)) |
+        ((Message.sender_id == other.id) & (Message.receiver_id == current_user.id))
+    ).order_by(Message.created_at.asc()).all()
+    # 标记已读
+    Message.query.filter_by(receiver_id=current_user.id, sender_id=other.id, is_read=False)\
+        .update({'is_read': True})
+    db.session.commit()
+    return render_template('conversation.html', other=other, chat=chat)
+
+
+# ===== 知识库文件上传 =====
+@app.route('/knowledge/<int:article_id>/upload', methods=['POST'])
+@login_required
+def upload_attachment(article_id):
+    article = KnowledgeArticle.query.get_or_404(article_id)
+    if 'file' not in request.files:
+        flash('请选择文件', 'danger')
+        return redirect(url_for('knowledge_detail', article_id=article_id))
+    file = request.files['file']
+    if file and file.filename and allowed_file(file.filename):
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f'attach_{article_id}_{uuid.uuid4().hex[:8]}.{ext}'
+        file.save(os.path.join(UPLOAD_FOLDER, filename))
+        att = KnowledgeAttachment(
+            article_id=article_id, filename=file.filename,
+            file_path=filename, file_type=ext
+        )
+        db.session.add(att)
+        db.session.commit()
+        flash('文件上传成功', 'success')
+    return redirect(url_for('knowledge_detail', article_id=article_id))
+
+
+@app.route('/attachment/<int:att_id>/delete', methods=['POST'])
+@login_required
+def delete_attachment(att_id):
+    att = KnowledgeAttachment.query.get_or_404(att_id)
+    if current_user.role != 'admin':
+        abort(403)
+    article_id = att.article_id
+    db.session.delete(att)
+    db.session.commit()
+    flash('附件已删除', 'success')
+    return redirect(url_for('knowledge_detail', article_id=article_id))
+
+
+# ===== 打卡自动生成动态 =====
+def create_checkin_post(checkin):
+    """打卡时自动生成一条动态"""
+    content = f'📅 完成了今日打卡'
+    if checkin.description:
+        content += f'\n"{checkin.description}"'
+    content += f'\n（+{checkin.points} 分）'
+    post = Post(user_id=checkin.user_id, content=content, image_path=checkin.photo_path)
+    db.session.add(post)
 
 
 # ===== 初始化数据库（gunicorn 也会执行） =====

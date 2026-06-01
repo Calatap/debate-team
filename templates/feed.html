@@ -44,9 +44,49 @@
             </div>
             {% endif %}
             <div class="feed-card-footer">
-                <button class="like-btn" onclick="likePost({{ post.id }}, this)">
-                    &#x2764; <span class="like-count">{{ post.likes }}</span>
-                </button>
+                <div class="post-actions-bar">
+                    <button class="like-btn" onclick="likePost({{ post.id }}, this)">
+                        &#x2764; <span class="like-count">{{ post.likes }}</span>
+                    </button>
+                    <a href="{{ url_for('post_detail', post_id=post.id) }}" style="font-size:13px;color:var(--text-light);">
+                        &#x1f4ac; {{ post.post_comments|length }} 评论
+                    </a>
+                    {% if post.author.id == current_user.id or current_user.role == 'admin' %}
+                    <form method="post" action="{{ url_for('delete_post', post_id=post.id) }}" style="display:inline"
+                          onsubmit="return confirm('确定要删除吗？')">
+                        <button class="post-delete-btn">&#x1f5d1;</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- 快捷评论 -->
+            <div class="comment-section">
+                <form method="post" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form">
+                    <input type="text" name="content" placeholder="写评论..." required>
+                    <button type="submit">发送</button>
+                </form>
+                {% set comments = post.post_comments[:3] %}
+                {% if comments %}
+                <div class="comment-list">
+                    {% for comment in comments %}
+                    <div class="comment-item">
+                        <div class="comment-avatar">{{ comment.commenter.display_name[0] }}</div>
+                        <div class="comment-body">
+                            <div class="comment-header">
+                                <span class="comment-name">{{ comment.commenter.display_name }}</span>
+                                <span class="comment-time">{{ comment.time_ago() }}</span>
+                            </div>
+                            <div class="comment-text">{{ comment.content[:80] }}{{ comment.content|length > 80 and '...' or '' }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if post.post_comments|length > 3 %}
+                <a href="{{ url_for('post_detail', post_id=post.id) }}" style="font-size:13px;color:var(--primary);display:block;text-align:center;margin-top:6px;">
+                    查看全部 {{ post.post_comments|length }} 条评论
+                </a>
+                {% endif %}
+                {% endif %}
             </div>
         </div>
         {% endfor %}

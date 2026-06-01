@@ -54,6 +54,10 @@
             <span class="nav-icon">&#x2705;</span>
             <span class="nav-label">打卡</span>
         </a>
+        <a href="{{ url_for('checkins_wall') }}" class="nav-item {% if request.endpoint == 'checkins_wall' %}active{% endif %}">
+            <span class="nav-icon">&#x1f4c5;</span>
+            <span class="nav-label">打卡墙</span>
+        </a>
         <a href="{{ url_for('leaderboard') }}" class="nav-item {% if request.endpoint == 'leaderboard' %}active{% endif %}">
             <span class="nav-icon">&#x1f3c6;</span>
             <span class="nav-label">排行</span>
@@ -61,6 +65,10 @@
         <a href="{{ url_for('knowledge') }}" class="nav-item {% if request.endpoint == 'knowledge' %}active{% endif %}">
             <span class="nav-icon">&#x1f4da;</span>
             <span class="nav-label">学习</span>
+        </a>
+        <a href="{{ url_for('messages') }}" class="nav-item {% if request.endpoint == 'messages' or request.endpoint == 'conversation' %}active{% endif %}">
+            <span class="nav-icon">&#x1f4ec;</span>
+            <span class="nav-label">私信</span>
         </a>
         <a href="{{ url_for('profile', username=current_user.username) }}" class="nav-item {% if request.endpoint == 'profile' %}active{% endif %}">
             <span class="nav-icon">&#x1f464;</span>

@@ -127,6 +127,13 @@ img {
 .nav-label {
     font-size: 10px;
 }
+/* 7项导航时更紧凑 */
+.bottom-nav .nav-item {
+    padding: 6px 0 4px;
+}
+.bottom-nav .nav-icon {
+    font-size: 18px;
+}
 
 /* ===== 主内容 ===== */
 .main-content {
@@ -1074,7 +1081,387 @@ img {
 .mt-8 { margin-top: 8px; }
 .mt-16 { margin-top: 16px; }
 
-/* ===== 实用工具 ===== */
-.text-center { text-align: center; }
-.mt-8 { margin-top: 8px; }
-.mt-16 { margin-top: 16px; }
+/* ===== 评论 ===== */
+.comment-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+.comment-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.comment-form input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+}
+.comment-form input:focus {
+    border-color: var(--primary-light);
+}
+.comment-form button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 20px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.comment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.comment-item {
+    display: flex;
+    gap: 8px;
+}
+.comment-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--primary-light);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+    font-weight: 600;
+}
+.comment-body {
+    flex: 1;
+}
+.comment-header {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 2px;
+}
+.comment-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+}
+.comment-time {
+    font-size: 11px;
+    color: var(--text-light);
+}
+.comment-text {
+    font-size: 14px;
+    line-height: 1.5;
+}
+.comment-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+.comment-actions button,
+.comment-actions form button {
+    border: none;
+    background: none;
+    color: var(--text-light);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+}
+.comment-actions button:hover {
+    color: var(--primary);
+}
+.reply-form {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    margin-left: 36px;
+}
+.reply-form input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    font-size: 13px;
+    outline: none;
+    font-family: inherit;
+}
+.reply-form button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 16px;
+    background: var(--primary-light);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+}
+.replies {
+    margin-left: 36px;
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* ===== Post Actions ===== */
+.post-actions-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.post-delete-btn {
+    border: none;
+    background: none;
+    color: var(--text-light);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 6px;
+}
+.post-delete-btn:hover {
+    color: var(--danger);
+}
+
+/* ===== Checkins Wall ===== */
+.checkin-wall-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+.checkin-wall-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    font-weight: 700;
+}
+.checkin-wall-body {
+    flex: 1;
+}
+.checkin-wall-user {
+    font-weight: 600;
+    font-size: 15px;
+}
+.checkin-wall-date {
+    font-size: 12px;
+    color: var(--text-light);
+}
+.checkin-wall-desc {
+    font-size: 14px;
+    margin-top: 4px;
+}
+.checkin-wall-points {
+    color: var(--warning);
+    font-weight: 600;
+    font-size: 13px;
+    margin-top: 2px;
+}
+.checkin-wall-photo {
+    margin-top: 8px;
+}
+.checkin-wall-photo img {
+    max-height: 200px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+/* ===== Messages ===== */
+.messages-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-light);
+}
+.messages-empty .icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+.chat-conversation {
+    display: flex;
+    flex-direction: column;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    max-width: 600px;
+    margin: 0 auto;
+}
+.chat-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 15px;
+}
+.chat-messages {
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 500px;
+    min-height: 300px;
+}
+.chat-msg {
+    max-width: 80%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+.chat-msg.sent {
+    align-self: flex-end;
+    background: var(--primary);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+.chat-msg.received {
+    align-self: flex-start;
+    background: var(--bg);
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+}
+.chat-msg .time {
+    font-size: 10px;
+    opacity: 0.7;
+    margin-top: 4px;
+    display: block;
+}
+.chat-input-area {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+}
+.chat-input-area input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+}
+.chat-input-area input:focus {
+    border-color: var(--primary-light);
+}
+.chat-input-area button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 20px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+}
+.chat-user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 400px;
+    margin: 0 auto;
+}
+.chat-user-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    transition: transform 0.15s;
+}
+.chat-user-card:active {
+    transform: scale(0.99);
+}
+.chat-user-card .unread-badge {
+    margin-left: auto;
+    background: var(--danger);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+}
+
+/* ===== Settings ===== */
+.settings-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    max-width: 500px;
+    margin: 0 auto;
+}
+.settings-card h2 {
+    margin-bottom: 20px;
+    color: var(--primary);
+}
+.settings-card .form-group {
+    margin-bottom: 18px;
+}
+.settings-card label {
+    display: block;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 6px;
+}
+.settings-card input[type="text"] {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    font-size: 15px;
+    outline: none;
+    font-family: inherit;
+}
+.settings-card input[type="text"]:focus {
+    border-color: var(--primary-light);
+}
+.avatar-preview {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 10px;
+    border: 3px solid var(--border);
+}
+
+/* ===== Attachments ===== */
+.attachment-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+.attachment-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--bg);
+    border-radius: 8px;
+    font-size: 13px;
+}
+.attachment-item a {
+    color: var(--primary);
+}
+.del-att-btn {
+    color: var(--danger);
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0 4px;
+}
