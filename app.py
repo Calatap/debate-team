@@ -718,6 +718,7 @@ def upload_voice():
 # ===== 辩论AI助手 =====
 AI_API_URL = os.environ.get('AI_API_URL', '')
 AI_API_KEY = os.environ.get('AI_API_KEY', '')
+AI_MODEL = os.environ.get('AI_MODEL', 'deepseek-chat')
 
 @app.route('/ai')
 @login_required
@@ -725,7 +726,8 @@ def ai_chat():
     history = AIChat.query.filter_by(user_id=current_user.id)\
         .order_by(AIChat.created_at.asc()).limit(100).all()
     return render_template('ai_chat.html', history=history,
-                           api_configured=bool(AI_API_URL))
+                           api_configured=bool(AI_API_URL),
+                           ai_model=AI_MODEL)
 
 
 @app.route('/ai/ask', methods=['POST'])
@@ -771,7 +773,7 @@ def ai_ask():
                 AI_API_URL,
                 headers={'Authorization': f'Bearer {AI_API_KEY}',
                          'Content-Type': 'application/json'},
-                json={'messages': messages},
+                json={'model': AI_MODEL, 'messages': messages},
                 timeout=60
             )
             data = resp.json()

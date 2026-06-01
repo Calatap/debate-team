@@ -7,7 +7,7 @@
             <span class="ai-header-icon">&#x1f916;</span>
             <div>
                 <h2>AI辩论助手</h2>
-                <span class="ai-subtitle">分析辩题 · 构建论点 · 模拟攻防</span>
+                <span class="ai-subtitle">分析辩题 · 构建论点 · 模拟攻防{% if api_configured %} · {{ ai_model }}{% endif %}</span>
             </div>
         </div>
         <form method="post" action="{{ url_for('ai_clear') }}"
